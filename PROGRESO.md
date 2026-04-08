@@ -27,10 +27,8 @@ dipve/
 │   ├── App.jsx              — Componente raíz con loading/error/data
 │   └── index.css            — Tailwind base
 ├── tailwind.config.js       — Configurado con color wine #5C1A1A
-└── PROGRESO.md              — Este archivo
+└── PROGRESO.md              — Este archivo (en carpeta DIPVE_CLAUDE_CODE)
 ```
-
----
 
 ### Qué funciona
 
@@ -39,11 +37,7 @@ dipve/
 - Parseo correcto de fechas en formato argentino `DD/MM/YYYY HH:MM:SS`
 - Filtro por semana actual (lunes a hoy)
 - Caché en memoria de 5 minutos
-- Panel 5 — Performance por Vendedor con datos reales:
-  - Tabla: Vendedor / Visitas / Nuevos PDV / Compraron / Conversión / Pedidos / Entregas
-  - Diseño corporativo color vino #5C1A1A
-  - Colores de conversión: verde ≥50%, amarillo ≥25%, rojo <25%
-  - Responsive (funciona en mobile)
+- Panel 5 — Performance por Vendedor con datos reales
 - Ignora registros anteriores al 01/03/2026
 
 ### Bug resuelto en Sesión 1
@@ -54,15 +48,265 @@ fallback nativo en `sheetParser.js:parseDate()`.
 
 ---
 
-### Objetivo de la Sesión 2
+## Sesión 2 — 08/04/2026
 
-1. **Filtro de período** — selector semana / mes con botones "Semana actual" y "Mes actual"
-2. **Panel 1 — Nuevos PDV** — total visitados, compraron vs no compraron, razones de no compra
-3. **Navegación entre paneles** — header o tabs para cambiar de panel
-4. Decidir si agregar KPICards visuales arriba del panel de vendedores
+### Estado: COMPLETADO
 
-### Notas técnicas para Sesión 2
+---
 
-- El GID de las hojas "Pedidos Tomados" e "Inventario PDV" está sin verificar — revisar en la URL del Sheet
-- Node.js v16.9.1 instalado — usar dependencias compatibles (Vite 4, Tailwind 3)
-- Stack: Vite 4 / React / Tailwind 3.4.1 / Recharts / Lucide React / Papaparse
+### Archivos creados / modificados
+
+```
+dipve/src/
+├── hooks/
+│   └── usePeriodFilter.js     — NUEVO: estado del filtro (fechaDesde, fechaHasta,
+│                                setWeek, setMonth, setCustomRange, activePreset)
+├── components/
+│   ├── filters/
+│   │   └── PeriodFilter.jsx   — NUEVO: barra sticky con botones Semana/Mes +
+│                                date inputs Desde/Hasta; responsive mobile
+│   └── panels/
+│       ├── NuevosPDVPanel.jsx — NUEVO: Panel 1 completo
+│       └── VendedoresPanel.jsx — MODIFICADO: acepta fechaDesde/fechaHasta como props
+├── utils/
+│   └── kpiCalculator.js       — EXTENDIDO: calcNuevosPDVStats()
+├── constants/
+│   └── sheetConfig.js         — EXTENDIDO: COLS.tipoPDV (índice 9, Col J — verificar)
+├── utils/
+│   └── sheetParser.js         — EXTENDIDO: parsea campo tipoPDV
+└── App.jsx                    — REESCRITO: filtro compartido + tabs Nuevos PDV / Vendedores
+```
+
+### Qué funciona en Sesión 2
+
+- **Filtro de período compartido** entre todos los paneles
+  - Botón "Semana actual": lunes de la semana actual → hoy
+  - Botón "Mes actual": 1ro del mes actual → hoy
+  - Date inputs Desde/Hasta editables manualmente
+  - Botón activo resaltado visualmente
+  - Barra sticky, siempre visible al hacer scroll
+  - En mobile: botones y date inputs se apilan verticalmente
+
+- **Panel 1 — Nuevos PDV** con datos reales del Sheet
+  - 3 tarjetas KPI: Total visitados | Compraron | Tasa de conversión
+  - Colores semafóricos en tasa: verde ≥50%, amarillo ≥25%, rojo <25%
+  - Gráfico de barras horizontal (Recharts) de razones de no compra
+  - Tabla de conversión por vendedor (total / compraron / tasa)
+  - Sección de distribución por tipo de PDV (si hay datos)
+  - Todo reactivo al filtro de período
+
+- **Navegación por tabs** entre paneles (Nuevos PDV / Vendedores)
+  - Panel activo con borde inferior rojo vino
+
+- **VendedoresPanel** refactorizado para recibir fechaDesde/fechaHasta como props
+  (ya no calcula sus propios defaults internamente)
+
+### Bug corregido post-Sesión 2: índices de columna
+
+Verificados contra los headers reales de la hoja cruda "Respuestas de formulario 1":
+
+| Campo | Índice anterior | Índice correcto | Header real |
+|---|---|---|---|
+| `tipoPDV` | 9 (Producto 1) | **4** | "Punto de Venta" |
+| `razonNoCompra` | 22 (Cantidad 2 Cajas) | **27** | "Razón" |
+| `estadoEntrega` | 65 (Zona entrega) | **68** | "Estado de Entrega" |
+
+El índice 22 era "Cantidad 2 (Cajas)" — las razones de no compra estaban silenciosamente vacías.
+Corregido en `sheetConfig.js` el 08/04/2026.
+
+---
+
+---
+
+## Sesión 3 — 08/04/2026
+
+### Estado: COMPLETADO
+
+---
+
+### Archivos creados / modificados
+
+```
+dipve/src/
+├── constants/
+│   └── sheetConfig.js          — EXTENDIDO: COLS.productoPedido (5 índices), COLS.cantidadPedida
+│                                  (5 índices), COLS.inventarioPDV (7 índices CK–CQ),
+│                                  constante INVENTORY_STATES
+├── utils/
+│   ├── sheetParser.js          — EXTENDIDO: parsea productos[] y inventario[] por fila
+│   └── kpiCalculator.js        — EXTENDIDO: calcPedidosStats() y calcInventarioStats()
+└── components/panels/
+    ├── PedidosPanel.jsx        — NUEVO: Panel 2 completo
+    └── InventarioPanel.jsx     — NUEVO: Panel Inventario PDV completo
+App.jsx                         — EXTENDIDO: tabs Pedidos + Inventario agregados
+```
+
+### Qué funciona en Sesión 3
+
+- **Panel 2 — Pedidos:**
+  - 2 tarjetas KPI: Total pedidos tomados | Total cajas pedidas
+  - Gráfico de barras horizontal (Recharts): ranking productos por cajas
+  - Tabla: pedidos y cajas por vendedor
+  - Mensaje "Sin pedidos en el período" si no hay datos
+
+- **Panel Inventario PDV:**
+  - Tabla: por producto, columnas `<5 cajas | >5 cajas | >10 cajas | No vende`
+  - Highlight rojo (borde izquierdo + badge "crítico") en productos con stock <5 cajas
+  - Cuenta de relevamientos en el período
+  - Mensaje "Sin relevamientos en el período" si no hay datos
+
+- **Índices de columna parseados (0-based):**
+  - Productos pedidos: 34, 36, 37, 38, 97 (AI, AK, AL, AM, CT)
+  - Cantidades: 35, 39, 40, 41, 98 (AJ, AN, AO, AP, CU)
+  - Inventario PDV: 88–94 (CK–CQ, 7 productos en orden catálogo)
+
+- Build limpio: `npm run build` sin errores (solo warning de chunk size, esperado)
+
+### Notas técnicas para Sesión 4
+
+- Los índices de columna de inventario (CK=88..CQ=94) son teóricos — verificar contra
+  headers reales del Sheet si calcInventarioStats() retorna vacío con datos reales
+- Actualmente la app tiene 4 tabs: Nuevos PDV | Pedidos | Inventario | Vendedores
+- Pendiente: Panel 3 (Precios/Competencia), Panel 4 (Entregas), Header mejorado con logo
+
+### Objetivo de la Sesión 3 (histórico)
+
+1. **Verificar índice real de tipoPDV** en el Sheet y corregir si es necesario
+2. **Panel 2 — Pedidos e Inventario**: total pedidos, ranking de productos, pedidos por vendedor
+3. **Header con logo o título mejorado** + posiblemente sidebar de navegación
+4. **Panel 4 — Entregas**: total, desglose entrega total/parcial/no entregado, cobros
+5. Evaluar si agregar KPICards resumen en la vista principal (encima de los paneles)
+
+---
+
+## Sesión 4 — 08/04/2026
+
+### Estado: COMPLETADO
+
+---
+
+### Archivos creados / modificados
+
+```
+dipve/src/
+├── constants/
+│   └── sheetConfig.js          — MODIFICADO: eliminado estadoEntrega duplicado,
+│                                  nuevo estadoEntrega: 69, seCobro: 70, metodoCobro: 71,
+│                                  precioCompetidores: [53,54,55], precioValSud: [57,58,59]
+├── utils/
+│   ├── sheetParser.js          — EXTENDIDO: parsea seCobro, metodoCobro, precioValSud[],
+│                                  precioCompetidores[] (float, null si vacío)
+│   └── kpiCalculator.js        — EXTENDIDO: calcEntregasStats(), calcPreciosStats()
+├── components/
+│   ├── layout/
+│   │   └── Header.jsx          — NUEVO: header sticky = title bar (DIPVE en #5C1A1A +
+│   │                              "datos: HH:MM") + PeriodFilter integrado
+│   └── panels/
+│       ├── EntregasPanel.jsx   — NUEVO: Panel 4 completo
+│       └── PreciosPanel.jsx    — NUEVO: Panel 3 completo
+└── App.jsx                     — REESCRITO: importa Header, 5 tabs navegables
+                                   (Vendedores | Nuevos PDV | Pedidos | Precios | Entregas),
+                                   InventarioPanel integrado bajo tab Pedidos,
+                                   fondo #F5F5F5, tabs con scroll horizontal mobile
+```
+
+### Qué funciona en Sesión 4
+
+- **Panel 4 — Entregas:**
+  - 2 tarjetas KPI: Total entregas | Cobros realizados (con % del total)
+  - 3 badges semafóricos: Entrega Total (verde) / Entrega Parcial (amarillo) / No Entregado (rojo)
+    con porcentaje de cada estado
+  - Tabla de cobros por método de pago
+  - "Sin entregas en el período" si no hay datos
+
+- **Panel 3 — Precios:**
+  - Tabla Val Sud (Red Blend Magnum / Classic / Gran Malbec) con precio promedio
+  - Tabla Competidores (Viñas de Balbo / Hormiga Negra / Prófugo) con precio promedio
+  - Muestra cantidad de relevamientos en que se informó ese precio
+  - "Sin relevamientos de precios en el período" si todos los precios son null
+
+- **Header.jsx** (sticky, z-20):
+  - Barra superior blanca: "DIPVE" en #5C1A1A bold, subtítulo visible en sm+
+  - Hora de última actualización de datos a la derecha
+  - PeriodFilter anidado debajo (fondo #5C1A1A como antes)
+
+- **Navegación por tabs** — 5 tabs en orden: Vendedores | Nuevos PDV | Pedidos | Precios | Entregas
+  - Tab Pedidos muestra PedidosPanel + InventarioPanel apilados (Inventario integrado sin tab propio)
+  - Scroll horizontal en mobile (`overflow-x-auto` + `min-w-max`)
+  - Tab activo con borde inferior `border-red-800` y texto `text-red-800`
+
+- **Paleta visual unificada:**
+  - Fondo pantalla: `#F5F5F5`
+  - Color principal: `#5C1A1A`
+  - Texto sobre fondo oscuro: blanco
+  - Todas las tablas con encabezados `bg-gray-50`, filas alternas `bg-red-50`
+  - Spinner y manejo de error en todos los paneles
+  - Build limpio: `npm run build` sin errores (solo warning de chunk size, esperado)
+
+### Notas técnicas para Sesión 5
+
+- **Índices de precios no verificados contra sheet real** — si PreciosPanel retorna "Sin datos",
+  verificar que `precioCompetidores: [53,54,55]` y `precioValSud: [57,58,59]` coincidan con
+  los headers reales del Sheet (el CSV fetch del 08/04/2026 dió esos valores pero el LLM
+  podría haberse equivocado al indexar). Abrir Sheet, ir a fila 1, contar columnas.
+- **estadoEntrega actualizado de 68 a 69** — WebFetch del 08/04 mostró índice 69.
+  Si EntregasPanel retorna vacío con datos de entrega reales, probar con 68.
+- **seCobro / metodoCobro** en índices 70 y 71 (no verificados directamente — asumidos como
+  columnas consecutivas a estadoEntrega=69).
+- Pendiente: tests unitarios (Vitest), deploy en Vercel.
+
+### Notas técnicas para Sesión 3
+
+- GIDs de "Pedidos Tomados" e "Inventario PDV" sin verificar — revisar URL del Sheet
+- Las columnas de productos pedidos están en AI, AK, AL, AM, CT (índices 34, 36, 37, 38, 97)
+  y cantidades en AJ, AN, AO, AP, CU (índices 35, 39, 40, 41, 98) — verificar
+- Stack: Vite 4 / React 18 / Tailwind 3.4.1 / Recharts 3.8.1 / Lucide React / Papaparse
+- Build limpio: `npm run build` pasa sin errores (solo warning de chunk size, esperado)
+- Proyecto en `/Users/danielgallardo/dipve/`
+
+---
+
+## Sesión 5 — 08/04/2026
+
+### Estado: COMPLETADO
+
+---
+
+### Qué se hizo en Sesión 5
+
+- **Build de producción verificado:** `npm run build` limpio sin errores.
+- **`.gitignore` actualizado:** agregadas entradas `.env`, `.env.local`, `.env.*.local`
+  (el proyecto no usa `.env` pero se protege por seguridad).
+- **Repositorio GitHub creado:** `https://github.com/Saferian2020/dipve`
+  - Usuario: Saferian2020 / daniel.gallardo90@gmail.com
+  - 34 archivos commiteados en commit inicial
+  - Rama: `main`
+- **Deploy en Vercel completado:**
+  - Framework detectado automáticamente: Vite
+  - Build command: `npm run build` / Output: `dist`
+  - Sin variables de entorno necesarias (Sheet público sin API Key)
+
+### URL pública en producción
+
+> **https://dipve.vercel.app/**
+
+El dashboard carga datos reales desde Google Sheets y funciona correctamente en producción.
+Verificado: datos visibles, sin errores de CORS, accesible desde cualquier dispositivo.
+
+### Flujo de deploy para futuras actualizaciones
+
+Cualquier cambio en el código se despliega automáticamente:
+```bash
+# Desde /Users/danielgallardo/dipve
+git add .
+git commit -m "descripción del cambio"
+git push origin main
+# Vercel detecta el push y redeploya en ~1 minuto
+```
+
+### Pendiente para próximas sesiones
+
+- Tests unitarios con Vitest (sheetParser, dateUtils, kpiCalculator)
+- Verificar índices reales de precios (`precioCompetidores: [53,54,55]` y `precioValSud: [57,58,59]`)
+- Verificar índices de cobro (`seCobro: 70`, `metodoCobro: 71`) contra headers reales del Sheet
+- Dominio custom opcional en Vercel (ej: `dipve.vercel.app` → dominio propio)
