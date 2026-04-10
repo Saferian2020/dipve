@@ -12,7 +12,7 @@ export default function Header({
   onCustomRange,
 }) {
   return (
-    <div className="sticky top-0 z-20 shadow-md">
+    <div>
       {/* Title bar */}
       <div className="bg-white border-b-2 px-4 py-3 flex items-center justify-between" style={{ borderColor: WINE }}>
         <div className="flex items-center gap-2">

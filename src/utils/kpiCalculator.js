@@ -190,17 +190,37 @@ export function calcEntregasStats(data, fechaDesde, fechaHasta) {
   return { total, entregaTotal, parcial, noEntregado, cobros, totalCobros };
 }
 
-// Val Sud products with price columns (first 3 products in catalog)
+// Val Sud products with price columns (indices 0-2 in precioValSud array)
 const VALSUD_PRICE_PRODUCTS = [
   'Val Sud Red Blend Magnum',
   'Val Sud Red Blend Classic',
   'Val Sud Gran Malbec',
 ];
 
+const ZONE_A1 = 'Zona A1';
+const ZONE_B1 = 'Zona B1';
+
+function calcZoneStats(rows, priceKey, productIndex, zoneName) {
+  const prices = rows
+    .filter((r) => r.zona === zoneName)
+    .map((r) => (r[priceKey] || [])[productIndex])
+    .filter((p) => p !== null && p > 0);
+  if (prices.length === 0) return { prom: null, min: null, max: null };
+  return {
+    prom: Math.round(prices.reduce((s, p) => s + p, 0) / prices.length),
+    min: Math.round(Math.min(...prices)),
+    max: Math.round(Math.max(...prices)),
+  };
+}
+
 export function calcPreciosStats(data, fechaDesde, fechaHasta) {
-  const emptyValSud = VALSUD_PRICE_PRODUCTS.map((nombre) => ({ nombre, promedio: null, count: 0 }));
-  const emptyComp = COMPETITORS.map((nombre) => ({ nombre, promedio: null, count: 0 }));
-  const empty = { totalRelevamientos: 0, valSud: emptyValSud, competidores: emptyComp };
+  const emptyZone = { prom: null, min: null, max: null };
+  const emptyProduct = (nombre) => ({ nombre, a1: emptyZone, b1: emptyZone, relevamientos: 0 });
+  const empty = {
+    totalRelevamientos: 0,
+    valSud: VALSUD_PRICE_PRODUCTS.map(emptyProduct),
+    competidores: COMPETITORS.map(emptyProduct),
+  };
 
   if (!data || data.length === 0) return empty;
 
@@ -210,37 +230,58 @@ export function calcPreciosStats(data, fechaDesde, fechaHasta) {
 
   if (rows.length === 0) return empty;
 
-  // Average Val Sud prices (index 0-2 in precioValSud array)
-  const valSud = VALSUD_PRICE_PRODUCTS.map((nombre, i) => {
-    const prices = rows
-      .map((r) => (r.precioValSud || [])[i])
-      .filter((p) => p !== null && p > 0);
-    return {
-      nombre,
-      promedio: prices.length > 0 ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : null,
-      count: prices.length,
-    };
-  });
+  const valSud = VALSUD_PRICE_PRODUCTS.map((nombre, i) => ({
+    nombre,
+    a1: calcZoneStats(rows, 'precioValSud', i, ZONE_A1),
+    b1: calcZoneStats(rows, 'precioValSud', i, ZONE_B1),
+    relevamientos: rows.filter((r) => {
+      const p = (r.precioValSud || [])[i];
+      return p !== null && p > 0;
+    }).length,
+  }));
 
-  // Average competitor prices (index 0-2 in precioCompetidores array)
-  const competidores = COMPETITORS.map((nombre, i) => {
-    const prices = rows
-      .map((r) => (r.precioCompetidores || [])[i])
-      .filter((p) => p !== null && p > 0);
-    return {
-      nombre,
-      promedio: prices.length > 0 ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : null,
-      count: prices.length,
-    };
-  });
+  const competidores = COMPETITORS.map((nombre, i) => ({
+    nombre,
+    a1: calcZoneStats(rows, 'precioCompetidores', i, ZONE_A1),
+    b1: calcZoneStats(rows, 'precioCompetidores', i, ZONE_B1),
+    relevamientos: rows.filter((r) => {
+      const p = (r.precioCompetidores || [])[i];
+      return p !== null && p > 0;
+    }).length,
+  }));
 
   const totalRelevamientos = rows.filter(
     (r) =>
-      (r.precioValSud || []).some((p) => p !== null) ||
-      (r.precioCompetidores || []).some((p) => p !== null)
+      (r.precioValSud || []).some((p) => p !== null && p > 0) ||
+      (r.precioCompetidores || []).some((p) => p !== null && p > 0)
   ).length;
 
   return { totalRelevamientos, valSud, competidores };
+}
+
+export function calcExecutiveSummary(data, fechaDesde, fechaHasta) {
+  const empty = { visitas: 0, conversion: null, pedidos: 0, deltaVisitas: null, visitasAnterior: 0 };
+  if (!data || data.length === 0) return empty;
+
+  const current = data.filter((r) => isInRange(r.fecha, fechaDesde, fechaHasta));
+  const visitas = current.length;
+
+  const nuevosPDVRows = current.filter((r) => r.tipoVisita === VISIT_TYPES.nuevoPDV);
+  const compraron = nuevosPDVRows.filter((r) => r.compro === COMPRO_SI).length;
+  const conversion = safeRate(compraron, nuevosPDVRows.length);
+
+  const pedidos = current.filter(
+    (r) => r.tipoVisita === VISIT_TYPES.pedido && r.resultado === RESULTS.pedidoTomado
+  ).length;
+
+  // Previous period: same duration, immediately before fechaDesde
+  const periodMs = fechaHasta.getTime() - fechaDesde.getTime();
+  const prevHasta = new Date(fechaDesde.getTime() - 1);
+  const prevDesde = new Date(prevHasta.getTime() - periodMs);
+  const visitasAnterior = data.filter((r) => isInRange(r.fecha, prevDesde, prevHasta)).length;
+  const deltaVisitas = visitasAnterior === 0 ? null : visitas - visitasAnterior;
+
+  return { visitas, conversion, pedidos, deltaVisitas, visitasAnterior };
 }
 
 function safeRate(numerator, denominator) {

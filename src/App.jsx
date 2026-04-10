@@ -3,21 +3,16 @@ import { useState } from 'react';
 import { useSheetData } from './hooks/useSheetData';
 import { usePeriodFilter } from './hooks/usePeriodFilter';
 import Header from './components/layout/Header';
-import VendedoresPanel from './components/panels/VendedoresPanel';
-import NuevosPDVPanel from './components/panels/NuevosPDVPanel';
-import PedidosPanel from './components/panels/PedidosPanel';
-import InventarioPanel from './components/panels/InventarioPanel';
+import ExecutiveSummary from './components/layout/ExecutiveSummary';
 import PreciosPanel from './components/panels/PreciosPanel';
-import EntregasPanel from './components/panels/EntregasPanel';
 
 const WINE = '#5C1A1A';
 
-const PANELS = [
-  { id: 'vendedores', label: 'Vendedores' },
-  { id: 'nuevosPDV', label: 'Nuevos PDV' },
-  { id: 'pedidos', label: 'Pedidos' },
+const TABS = [
+  { id: 'equipo', label: 'Equipo' },
+  { id: 'ventas', label: 'Ventas' },
   { id: 'precios', label: 'Precios' },
-  { id: 'entregas', label: 'Entregas' },
+  { id: 'pedidos', label: 'Pedidos / Entregas' },
 ];
 
 function LoadingSpinner() {
@@ -51,9 +46,17 @@ function ErrorMessage({ message }) {
   );
 }
 
+function PlaceholderPanel({ sesion }) {
+  return (
+    <div className="bg-white rounded-lg shadow p-10 text-center">
+      <p className="text-gray-400 text-sm">En construcción — se completa en Sesión {sesion}.</p>
+    </div>
+  );
+}
+
 export default function App() {
   const { data, loading, error, lastUpdated } = useSheetData();
-  const [activePanel, setActivePanel] = useState('vendedores');
+  const [activeTab, setActiveTab] = useState('precios');
   const {
     fechaDesde,
     fechaHasta,
@@ -70,32 +73,35 @@ export default function App() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F5F5F5' }}>
-      {/* Sticky header: title bar + period filter */}
-      <Header
-        lastUpdated={lastUpdated}
-        desdeInput={desdeInput}
-        hastaInput={hastaInput}
-        activePreset={activePreset}
-        onSetWeek={setWeek}
-        onSetMonth={setMonth}
-        onCustomRange={setCustomRange}
-      />
+      {/* Sticky zone: Header (title + period filter) + Executive Summary */}
+      <div className="sticky top-0 z-30 shadow-md">
+        <Header
+          lastUpdated={lastUpdated}
+          desdeInput={desdeInput}
+          hastaInput={hastaInput}
+          activePreset={activePreset}
+          onSetWeek={setWeek}
+          onSetMonth={setMonth}
+          onCustomRange={setCustomRange}
+        />
+        <ExecutiveSummary data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
+      </div>
 
-      {/* Panel navigation tabs — horizontal scroll on mobile */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      {/* Tab navigation */}
+      <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-2 overflow-x-auto">
           <div className="flex gap-0 min-w-max">
-            {PANELS.map((p) => (
+            {TABS.map((t) => (
               <button
-                key={p.id}
-                onClick={() => setActivePanel(p.id)}
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
                 className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                  activePanel === p.id
+                  activeTab === t.id
                     ? 'border-red-800 text-red-800'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {p.label}
+                {t.label}
               </button>
             ))}
           </div>
@@ -104,24 +110,12 @@ export default function App() {
 
       {/* Panel content */}
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-        {activePanel === 'vendedores' && (
-          <VendedoresPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
-        )}
-        {activePanel === 'nuevosPDV' && (
-          <NuevosPDVPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
-        )}
-        {activePanel === 'pedidos' && (
-          <>
-            <PedidosPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
-            <InventarioPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
-          </>
-        )}
-        {activePanel === 'precios' && (
+        {activeTab === 'equipo' && <PlaceholderPanel sesion={7} />}
+        {activeTab === 'ventas' && <PlaceholderPanel sesion={7} />}
+        {activeTab === 'precios' && (
           <PreciosPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
         )}
-        {activePanel === 'entregas' && (
-          <EntregasPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
-        )}
+        {activeTab === 'pedidos' && <PlaceholderPanel sesion={8} />}
       </main>
     </div>
   );

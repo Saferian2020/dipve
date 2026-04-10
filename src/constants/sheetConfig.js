@@ -29,10 +29,10 @@ export const COLS = {
   // Inventario PDV: estado por producto (cols CK–CQ, 7 productos en orden catálogo)
   inventarioPDV: [88, 89, 90, 91, 92, 93, 94],
 
-  // Entregas: columnas BN, BO, BP verificadas contra headers reales 08/04/2026
-  estadoEntrega: 69,  // Estado de Entrega (Entrega Total / Entrega Parcial / No Entregado)
-  seCobro: 70,        // Se cobró?
-  metodoCobro: 71,    // Método de Cobro
+  // Entregas: verificados contra headers reales 10/04/2026
+  estadoEntrega: 68,  // Estado de Entrega (Entrega Total / Entrega Parcial / No Entregado)
+  seCobro: 69,        // Se cobró?
+  metodoCobro: 70,    // Método de Cobro
 
   // Precios: relevados en visitas de Toma de Pedido / Relevamiento
   // Competidores (verificar contra headers reales si retorna vacío)
