@@ -310,3 +310,76 @@ git push origin main
 - Verificar índices reales de precios (`precioCompetidores: [53,54,55]` y `precioValSud: [57,58,59]`)
 - Verificar índices de cobro (`seCobro: 70`, `metodoCobro: 71`) contra headers reales del Sheet
 - Dominio custom opcional en Vercel (ej: `dipve.vercel.app` → dominio propio)
+
+---
+
+## Sesión 7 — 11/04/2026
+
+### Estado: COMPLETADO
+
+---
+
+### Archivos creados / modificados
+
+```
+dipve/src/
+├── utils/
+│   └── kpiCalculator.js        — EXTENDIDO: calcWeeklyTrend(), calcVendorComparison(),
+│                                  calcVentasStats() — nuevas funciones de tendencia y ventas
+├── components/
+│   ├── layout/
+│   │   └── ExecutiveSummary.jsx — MODIFICADO: delta vs sem. anterior ahora usa
+│   │                              calcWeeklyTrend(data, 2) en lugar del cálculo provisional
+│   └── panels/
+│       ├── EquipoPanel.jsx     — NUEVO: tabla comparativa vendedores + LineChart tendencia
+│       │                          4 semanas + tabla conversión por tipo PDV
+│       └── VentasPanel.jsx     — NUEVO: embudo de conversión + BarChart razones rechazo
+│                                  + ranking productos + KPI ticket promedio
+└── App.jsx                     — MODIFICADO: reemplazados placeholders de tab Equipo y Ventas
+```
+
+### Qué funciona en Sesión 7
+
+- **Tab Equipo:**
+  - Tabla comparativa Javier / Karen / Daniel con columnas: Vendedor | Visitas | Nuevos PDV |
+    Compraron | Conversión | Pedidos | Ticket Prom.
+  - Mini-barra de progreso horizontal en columna Visitas (proporcional al máximo del equipo)
+  - Fila de totales con fondo gris distinto al final
+  - Colores semafóricos en Conversión: verde ≥15% / amarillo ≥8% / rojo <8%
+  - `ticketPromedio` = cajas totales pedidas / pedidos tomados (muestra "—" si 0 pedidos)
+  - Gráfico de línea (Recharts LineChart) — visitas por vendedor en últimas 4 semanas
+    - Javier: #5C1A1A · Karen: #E07B54 · Daniel: #4A90D9
+    - Siempre basado en semanas calendario (no en el filtro de período)
+  - Tabla conversión por tipo de PDV ordenada por tasa descendente
+    - Mensaje "Sin datos de tipo de PDV en el período" si no hay datos
+
+- **Tab Ventas:**
+  - Embudo de conversión visual: Visitados (100%) → Interesados (X%) → Compraron (Y%)
+    - "Interesados" = PDV con razón "Reconfirmar" (señal de interés, no rechazo final)
+    - Colores: gris → naranja → vino #5C1A1A
+    - Ancho de bloque proporcional al porcentaje (mínimo 10% para legibilidad)
+  - Gráfico de barras horizontal (Recharts BarChart) — razones de rechazo
+    - "Reconfirmar" en naranja (oportunidad), resto en rojo oscuro
+    - Etiqueta truncada en 22 caracteres para mobile
+  - Tabla ranking de productos: Producto | Cajas pedidas | Zona predominante
+    - Mensaje "Sin pedidos en el período" si no hay datos
+  - KPI card: Ticket promedio (cajas por pedido tomado)
+
+- **ExecutiveSummary delta actualizado:**
+  - Antes: usaba período anterior de igual duración al filtro activo
+  - Ahora: usa `calcWeeklyTrend(data, 2)` — compara semana calendario actual vs semana anterior
+  - Resultado: el delta muestra siempre "esta semana vs semana pasada", independiente del filtro
+
+- **calcWeeklyTrend(data, semanas):**
+  - Calcula desde la semana actual (lunes de hoy) hacia atrás N semanas
+  - Cada semana: `{ semana, label, visitas, conversion, pedidos, porVendedor }`
+  - `porVendedor`: `{ Javier: N, Karen: N, Daniel: N }` — listo para Recharts LineChart
+  - Protegido contra semanas sin datos (retorna 0, no null)
+
+- **Build limpio:** `npm run build` sin errores (3.37s, solo warning de chunk size esperado)
+
+### Pendiente para Sesión 8
+
+- `deliveryMatcher.js` — cruce pedidos → entregas por dirección normalizada
+- `PedidosEntregasPanel.jsx` — KPIs de ciclo + tabla de pedidos + inventario integrado
+- Tests unitarios: sheetParser, dateUtils, kpiCalculator, deliveryMatcher

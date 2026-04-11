@@ -289,6 +289,216 @@ function safeRate(numerator, denominator) {
   return Math.round((numerator / denominator) * 100);
 }
 
+// Returns the Monday (00:00:00) of the week containing `date`
+function getMondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Returns data aggregated by calendar week for the last `semanas` weeks.
+ * Week 0 (oldest label "Sem 1") → current week (newest label "Sem N").
+ * Each entry: { semana, label, visitas, conversion, pedidos, porVendedor }
+ * porVendedor is an object { Javier: N, Karen: N, Daniel: N }
+ */
+export function calcWeeklyTrend(data, semanas = 4) {
+  if (!data || data.length === 0) {
+    return Array.from({ length: semanas }, (_, i) => ({
+      semana: null,
+      label: `Sem ${i + 1}`,
+      visitas: 0,
+      conversion: null,
+      pedidos: 0,
+      porVendedor: Object.fromEntries(VENDORS.map((v) => [v, 0])),
+    }));
+  }
+
+  const currentMonday = getMondayOf(new Date());
+  const result = [];
+
+  for (let i = semanas - 1; i >= 0; i--) {
+    const weekStart = new Date(currentMonday);
+    weekStart.setDate(currentMonday.getDate() - i * 7);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekRows = data.filter((r) => isInRange(r.fecha, weekStart, weekEnd));
+    const visitas = weekRows.length;
+
+    const nuevosPDVRows = weekRows.filter((r) => r.tipoVisita === VISIT_TYPES.nuevoPDV);
+    const compraron = nuevosPDVRows.filter((r) => r.compro === COMPRO_SI).length;
+    const conversion = safeRate(compraron, nuevosPDVRows.length);
+
+    const pedidos = weekRows.filter(
+      (r) => r.tipoVisita === VISIT_TYPES.pedido && r.resultado === RESULTS.pedidoTomado
+    ).length;
+
+    const porVendedor = Object.fromEntries(
+      VENDORS.map((v) => [v, weekRows.filter((r) => r.vendedor === v).length])
+    );
+
+    const weekIndex = semanas - 1 - i; // 0 = oldest
+    result.push({
+      semana: weekStart,
+      label: `Sem ${weekIndex + 1}`,
+      visitas,
+      conversion: conversion ?? 0,
+      pedidos: pedidos || 0,
+      porVendedor,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Returns per-vendor comparison stats for the given date range,
+ * plus a team-wide total row.
+ * Each vendor: { nombre, visitas, nuevosPDV, compraron, tasaConversion, pedidos, ticketPromedio }
+ * ticketPromedio is null when pedidos === 0 (display as "—").
+ */
+export function calcVendorComparison(data, desde, hasta) {
+  const emptyVendors = VENDORS.map((v) => ({
+    nombre: v,
+    visitas: 0,
+    nuevosPDV: 0,
+    compraron: 0,
+    tasaConversion: null,
+    pedidos: 0,
+    ticketPromedio: null,
+  }));
+  const emptyTotal = { nombre: 'Equipo', visitas: 0, nuevosPDV: 0, compraron: 0, tasaConversion: null, pedidos: 0, ticketPromedio: null };
+  if (!data || data.length === 0) return { vendors: emptyVendors, total: emptyTotal };
+
+  const rows = data.filter((r) => isInRange(r.fecha, desde, hasta));
+  if (rows.length === 0) return { vendors: emptyVendors, total: emptyTotal };
+
+  const vendors = VENDORS.map((nombre) => {
+    const vRows = rows.filter((r) => r.vendedor === nombre);
+    const visitas = vRows.length;
+
+    const nuevosPDVRows = vRows.filter((r) => r.tipoVisita === VISIT_TYPES.nuevoPDV);
+    const nuevosPDV = nuevosPDVRows.length;
+    const compraron = nuevosPDVRows.filter((r) => r.compro === COMPRO_SI).length;
+    const tasaConversion = safeRate(compraron, nuevosPDV);
+
+    const pedidoRows = vRows.filter(
+      (r) => r.tipoVisita === VISIT_TYPES.pedido && r.resultado === RESULTS.pedidoTomado
+    );
+    const pedidos = pedidoRows.length;
+    const totalCajas = pedidoRows.reduce(
+      (s, r) => s + (r.productos || []).reduce((ps, p) => ps + p.cajas, 0),
+      0
+    );
+    const ticketPromedio = pedidos > 0 ? Math.round(totalCajas / pedidos) : null;
+
+    return { nombre, visitas, nuevosPDV, compraron, tasaConversion, pedidos, ticketPromedio };
+  });
+
+  // Team totals
+  const totalVisitas = vendors.reduce((s, v) => s + v.visitas, 0);
+  const totalNuevosPDV = vendors.reduce((s, v) => s + v.nuevosPDV, 0);
+  const totalCompraron = vendors.reduce((s, v) => s + v.compraron, 0);
+  const totalPedidos = vendors.reduce((s, v) => s + v.pedidos, 0);
+  const allPedidoRows = rows.filter(
+    (r) => r.tipoVisita === VISIT_TYPES.pedido && r.resultado === RESULTS.pedidoTomado
+  );
+  const totalCajasAll = allPedidoRows.reduce(
+    (s, r) => s + (r.productos || []).reduce((ps, p) => ps + p.cajas, 0),
+    0
+  );
+
+  const total = {
+    nombre: 'Equipo',
+    visitas: totalVisitas,
+    nuevosPDV: totalNuevosPDV,
+    compraron: totalCompraron,
+    tasaConversion: safeRate(totalCompraron, totalNuevosPDV),
+    pedidos: totalPedidos,
+    ticketPromedio: totalPedidos > 0 ? Math.round(totalCajasAll / totalPedidos) : null,
+  };
+
+  return { vendors, total };
+}
+
+/**
+ * Returns sales funnel, rejection reasons, product ranking and avg ticket
+ * for the given date range.
+ */
+export function calcVentasStats(data, desde, hasta) {
+  const empty = {
+    embudo: { visitados: 0, interesados: 0, compraron: 0 },
+    razonesRechazo: [],
+    rankingProductos: [],
+    ticketPromedio: null,
+  };
+  if (!data || data.length === 0) return empty;
+
+  const rows = data.filter((r) => isInRange(r.fecha, desde, hasta));
+  if (rows.length === 0) return empty;
+
+  // Funnel: based on Nuevo PDV rows only
+  const nuevosPDVRows = rows.filter((r) => r.tipoVisita === VISIT_TYPES.nuevoPDV);
+  const visitados = nuevosPDVRows.length;
+  const compraron = nuevosPDVRows.filter((r) => r.compro === COMPRO_SI).length;
+  // "Interesados" = those who responded "Reconfirmar" as rejection reason
+  const interesados = nuevosPDVRows.filter(
+    (r) => r.compro !== COMPRO_SI && (r.razonNoCompra || '').toLowerCase().includes('reconfirmar')
+  ).length;
+
+  // Razones de rechazo (all non-buyers who have a reason, including "Reconfirmar")
+  const razonesMap = {};
+  nuevosPDVRows
+    .filter((r) => r.compro !== COMPRO_SI && r.razonNoCompra)
+    .forEach((r) => {
+      const razon = r.razonNoCompra;
+      razonesMap[razon] = (razonesMap[razon] || 0) + 1;
+    });
+  const razonesRechazo = Object.entries(razonesMap)
+    .map(([razon, cantidad]) => ({ razon, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad);
+
+  // Product ranking from pedidos taken
+  const pedidoRows = rows.filter(
+    (r) => r.tipoVisita === VISIT_TYPES.pedido && r.resultado === RESULTS.pedidoTomado
+  );
+  const productMap = {};
+  pedidoRows.forEach((r) => {
+    const zonaRow = r.zona || 'Sin zona';
+    (r.productos || []).forEach(({ nombre, cajas }) => {
+      if (!productMap[nombre]) productMap[nombre] = { cajas: 0, zonas: {} };
+      productMap[nombre].cajas += cajas;
+      productMap[nombre].zonas[zonaRow] = (productMap[nombre].zonas[zonaRow] || 0) + cajas;
+    });
+  });
+  const rankingProductos = Object.entries(productMap)
+    .map(([producto, { cajas, zonas }]) => {
+      const zonaPredominante =
+        Object.entries(zonas).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+      return { producto, cajas, zona: zonaPredominante };
+    })
+    .sort((a, b) => b.cajas - a.cajas);
+
+  // Ticket promedio: total cajas / pedidos
+  const totalCajas = pedidoRows.reduce(
+    (s, r) => s + (r.productos || []).reduce((ps, p) => ps + p.cajas, 0),
+    0
+  );
+  const ticketPromedio = pedidoRows.length > 0 ? Math.round(totalCajas / pedidoRows.length) : null;
+
+  return {
+    embudo: { visitados, interesados, compraron },
+    razonesRechazo,
+    rankingProductos,
+    ticketPromedio,
+  };
+}
+
 export function calcVendorStats(data, fechaDesde, fechaHasta) {
   if (!data || data.length === 0) {
     return VENDORS.map((v) => ({

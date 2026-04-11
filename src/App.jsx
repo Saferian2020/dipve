@@ -5,6 +5,8 @@ import { usePeriodFilter } from './hooks/usePeriodFilter';
 import Header from './components/layout/Header';
 import ExecutiveSummary from './components/layout/ExecutiveSummary';
 import PreciosPanel from './components/panels/PreciosPanel';
+import EquipoPanel from './components/panels/EquipoPanel';
+import VentasPanel from './components/panels/VentasPanel';
 
 const WINE = '#5C1A1A';
 
@@ -110,8 +112,12 @@ export default function App() {
 
       {/* Panel content */}
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-        {activeTab === 'equipo' && <PlaceholderPanel sesion={7} />}
-        {activeTab === 'ventas' && <PlaceholderPanel sesion={7} />}
+        {activeTab === 'equipo' && (
+          <EquipoPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
+        )}
+        {activeTab === 'ventas' && (
+          <VentasPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
+        )}
         {activeTab === 'precios' && (
           <PreciosPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
         )}

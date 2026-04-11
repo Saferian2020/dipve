@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { calcExecutiveSummary } from '../../utils/kpiCalculator';
+import { calcExecutiveSummary, calcWeeklyTrend } from '../../utils/kpiCalculator';
 import DeltaBadge from '../ui/DeltaBadge';
 
 const WINE = '#5C1A1A';
@@ -18,6 +18,16 @@ export default function ExecutiveSummary({ data, fechaDesde, fechaHasta }) {
     () => calcExecutiveSummary(data, fechaDesde, fechaHasta),
     [data, fechaDesde, fechaHasta]
   );
+
+  // Use calcWeeklyTrend to compare current calendar week vs previous calendar week
+  const weekDelta = useMemo(() => {
+    const weeks = calcWeeklyTrend(data, 2);
+    if (weeks.length < 2) return null;
+    const prev = weeks[0].visitas;
+    const curr = weeks[1].visitas;
+    if (prev === 0 && curr === 0) return null;
+    return curr - prev;
+  }, [data]);
 
   return (
     <div className="bg-white border-b border-gray-200">
@@ -42,7 +52,7 @@ export default function ExecutiveSummary({ data, fechaDesde, fechaHasta }) {
           </KPICard>
 
           <KPICard label="vs sem. anterior">
-            <DeltaBadge delta={stats.deltaVisitas} />
+            <DeltaBadge delta={weekDelta} />
           </KPICard>
         </div>
       </div>
