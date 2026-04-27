@@ -1,0 +1,949 @@
+================================================================================
+DIPVE — HOJA "SEGUIMIENTO DE CICLO"
+DOCUMENTACIÓN COMPLETA DE FÓRMULAS Y ESTADO
+================================================================================
+Fecha de elaboración: 17 de abril de 2026
+Última actualización: 17 de abril de 2026
+Versión: 2.0 (Post-auditoría)
+Proyecto: DIPVE — Dashboard Interactivo de Performance de Vendedores
+================================================================================
+
+
+ÍNDICE
+------
+1.  Propósito de la Hoja
+2.  Estructura General
+3.  Mapa de Columnas y Referencias Fuente
+4.  Fórmulas Detalladas por Columna
+5.  Lógica de Cálculo — Estados y Alertas
+6.  Comportamiento Dinámico — Actualización Automática
+7.  Auditoría y Correcciones Realizadas (Sesión 17/04/2026)
+8.  Estado Actual del Sistema
+9.  Notas Operativas
+
+
+================================================================================
+1. PROPÓSITO DE LA HOJA
+================================================================================
+
+La hoja "Seguimiento de Ciclo" es el corazón analítico del sistema DIPVE. 
+Transforma los registros crudos de las tres rutas del formulario 
+(Nuevo PDV, Pedido/Relevamiento, Entrega) en una visión consolidada del 
+ciclo de vida de cada punto de venta desde su apertura hasta el cierre de 
+la venta y cobro.
+
+CASO DE USO PRINCIPAL:
+Identificar rápidamente PDV en riesgo (entregas vencidas, sin cobro, 
+sin registro de entrega) y PDV que requieren seguimiento (recontacto 
+en tiempo oportuno) mediante un sistema de alertas automático.
+
+ACCESO: Una fila por dirección única. Las direcciones actúan como clave 
+primaria de cruce entre las tres rutas.
+
+
+================================================================================
+2. ESTRUCTURA GENERAL
+================================================================================
+
+ENCABEZADOS DE COLUMNAS:
+┌────┬──────────────────────────────────────────────────────────────────┐
+│ Col│ Nombre                                                           │
+├────┼──────────────────────────────────────────────────────────────────┤
+│ A  │ Dirección (clave de cruce)                                       │
+│ B  │ Nombre PDV                                                       │
+│ C  │ Zona                                                             │
+│ D  │ Tipo PDV                                                         │
+│ E  │ Vendedor apertura (Ruta 1)                                       │
+│ F  │ Fecha primera visita                                             │
+│ G  │ Resultado primera visita                                         │
+│ H  │ Vendedor pedido (Ruta 2)                                         │
+│ I  │ Fecha pedido                                                     │
+│ J  │ Fecha entrega programada                                         │
+│ K  │ Vendedor entrega (Ruta 3)                                        │
+│ L  │ Fecha entrega real                                               │
+│ M  │ Estado entrega (Total / Parcial / No entregado)                  │
+│ N  │ ¿Se cobró?                                                       │
+│ O  │ Método de cobro                                                  │
+│ P  │ Estado del ciclo (clasificación del PDV)                         │
+│ Q  │ Días en estado (antigüedad de la situación actual)               │
+│ R  │ Alerta (indicador visual para acción)                            │
+└────┴──────────────────────────────────────────────────────────────────┘
+
+PRINCIPIO FUNDAMENTAL:
+Cada columna de A a Q alimenta automáticamente a la siguiente. Las columnas
+P y R son los "outputs" — toda la lógica de negocio se consolida en ellas.
+
+
+================================================================================
+3. MAPA DE COLUMNAS Y REFERENCIAS FUENTE
+================================================================================
+
+La hoja cruza datos de tres hojas fuente diferentes dentro del mismo Sheet:
+
+RUTA 1 — NUEVO PDV (direcciones en col G de Respuestas):
+  - Col G  → Dirección PDV
+  - Col A  → Marca temporal
+  - Col B  → Vendedor
+  - Col E  → Tipo PDV
+  - Col F  → Zona
+  - Col I  → ¿Compró? (Sí/No)
+  - Col S  → Nombre PDV
+  - Col AB → Razón de no compra
+  - Col CI → ¿Se entregó en el momento?
+  - Col DC → Fecha programada de entrega (si no fue en el momento)
+  - Col K  → Forma de pago
+
+RUTA 2 — PEDIDO/RELEVAMIENTO (direcciones en col BL de Respuestas):
+  - Col BL → Dirección para Pedido/Relevamiento
+  - Col A  → Marca temporal
+  - Col B  → Vendedor
+  - Col AF → Zona
+  - Col AG → Resultado (Se tomó / No se tomó)
+  - Col AI, AK, AL, AM, CT → Productos (slots 1-5)
+  - Col AJ, AN, AO, AP, CU → Cantidades
+  - Col AQ → Fecha posible de entrega
+  - Col BI → Nombre PDV
+  - Col BJ → Tipo PDV
+
+RUTA 3 — ENTREGA (direcciones en col BP de Respuestas):
+  - Col BP → Dirección PDV para Entrega
+  - Col A  → Marca temporal
+  - Col B  → Vendedor
+  - Col BM → Nombre PDV
+  - Col BN → Zona
+  - Col BO → Tipo PDV
+  - Col BQ → Estado entrega (Total / Parcial / No entregado)
+  - Col BR → ¿Se cobró? (total)
+  - Col BS → Método de cobro (total)
+  - Col CD → ¿Hubo cobro? (parcial)
+  - Col CE → Método de cobro (parcial)
+
+
+================================================================================
+4. FÓRMULAS DETALLADAS POR COLUMNA
+================================================================================
+
+--------------------------------------------------------------------------------
+COLUMNA A — Dirección (clave de cruce)
+Celda: A2
+Expansión: Automática via UNIQUE
+Formato: Texto
+Rango cubierto: ~186 filas (se expande con nuevos datos)
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI.ERROR(
+  UNIQUE(
+    FILTER(
+      {'Respuestas de formulario 1'!G2:G;
+       'Respuestas de formulario 1'!BL2:BL;
+       'Respuestas de formulario 1'!BP2:BP},
+      {'Respuestas de formulario 1'!G2:G;
+       'Respuestas de formulario 1'!BL2:BL;
+       'Respuestas de formulario 1'!BP2:BP}<>"",
+      {'Respuestas de formulario 1'!G2:G;
+       'Respuestas de formulario 1'!BL2:BL;
+       'Respuestas de formulario 1'!BP2:BP}<>"Dirección PDV (Nuevo PDV)",
+      {'Respuestas de formulario 1'!G2:G;
+       'Respuestas de formulario 1'!BL2:BL;
+       'Respuestas de formulario 1'!BP2:BP}<>"Dirección Pedido/Relevamiento",
+      {'Respuestas de formulario 1'!G2:G;
+       'Respuestas de formulario 1'!BL2:BL;
+       'Respuestas de formulario 1'!BP2:BP}<>"Dirección PDV para Entrega."
+    )
+  ),
+"")
+
+EXPLICACIÓN:
+Consolida todas las direcciones de las tres rutas (G, BL, BP) en una sola
+lista sin duplicados. Filtra direcciones vacías y excluye los encabezados
+de sección. Es la columna clave — cada fila es un PDV único. Se expande
+automáticamente cuando entran nuevos registros. UNIQUE garantiza que cada
+dirección aparece una sola vez aunque esté registrada en múltiples rutas.
+
+
+--------------------------------------------------------------------------------
+COLUMNA B — Nombre PDV
+Celda: B2
+Rango: Estirar a B500
+Formato: Texto
+Depende de: Columna A
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!S:S},2,0),
+  SI.ERROR(
+    BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!BI:BI},2,0),
+    BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BM:BM},2,0)
+  )
+))
+
+EXPLICACIÓN:
+Busca el nombre comercial del PDV en las tres rutas en orden de prioridad:
+  1. Nuevo PDV (col S) — primera opción
+  2. Pedido/Relevamiento (col BI) — alternativa
+  3. Entrega (col BM) — último recurso
+El wrapper IF(A2="","",…) previene mensajes de error en filas sin dirección.
+
+
+--------------------------------------------------------------------------------
+COLUMNA C — Zona
+Celda: C2
+Rango: Estirar a C500
+Formato: Texto
+Depende de: Columna A
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!F:F},2,0),
+  SI.ERROR(
+    BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!AF:AF},2,0),
+    BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BN:BN},2,0)
+  )
+))
+
+EXPLICACIÓN:
+Busca la zona del PDV en tres ubicaciones posibles (Google Forms genera
+columnas separadas para preguntas en secciones diferentes):
+  1. Nuevo PDV (col F)
+  2. Pedido/Relevamiento (col AF)
+  3. Entrega (col BN)
+El orden de búsqueda prioriza la ruta más antigua del PDV.
+
+
+--------------------------------------------------------------------------------
+COLUMNA D — Tipo PDV
+Celda: D2
+Rango: Estirar a D500
+Formato: Texto
+Depende de: Columna A
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!E:E},2,0),
+  SI.ERROR(
+    BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!BJ:BJ},2,0),
+    BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BO:BO},2,0)
+  )
+))
+
+EXPLICACIÓN:
+Busca el tipo de negocio del PDV (Kiosco, Ventanita, Almacén, Supermercado
+chino, Restaurante, etc.) en las tres rutas. Permite segmentar análisis por
+tipo de comercio.
+
+
+--------------------------------------------------------------------------------
+COLUMNA E — Vendedor apertura
+Celda: E2
+Rango: Estirar a E500
+Formato: Texto
+Depende de: Columna A
+Únicamente Ruta 1
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!B:B},2,0),
+"Sin registro"))
+
+EXPLICACIÓN:
+Busca qué vendedor hizo la primera visita de Nuevo PDV. Solo busca en Ruta 1.
+Si el PDV no tiene registro de Nuevo PDV (porque entró al sistema por Pedido
+o Entrega directamente), devuelve "Sin registro". Correcto para clientes
+anteriores al sistema.
+
+
+--------------------------------------------------------------------------------
+COLUMNA F — Fecha primera visita
+Celda: F2
+Rango: Estirar a F500
+Formato: Fecha (Formato → Número → Fecha)
+Depende de: Columna A
+Únicamente Ruta 1
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!A:A},2,0),
+"Sin registro"))
+
+EXPLICACIÓN:
+Busca la marca temporal (fecha y hora) de la primera visita de Nuevo PDV.
+Crucial para calcular "Días en estado" y determinar si un PDV ha sido
+recontactado dentro del plazo.
+
+
+--------------------------------------------------------------------------------
+COLUMNA G — Resultado primera visita
+Celda: G2
+Rango: Estirar a G500
+Formato: Texto
+Depende de: Columna A
+Únicamente Ruta 1
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!I:I},2,0)="Sí",
+    "Compró",
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!AB:AB},2,0)
+  ),
+"Sin registro"))
+
+EXPLICACIÓN:
+Combina dos campos del formulario en una sola columna legible:
+  - Si el PDV compró (col I = "Sí") → devuelve "Compró"
+  - Si no compró → devuelve la razón específica (col AB): "Reconfirmar",
+    "No le interesa", "No vende Alcohol", "Precio", "Pide consignación", etc.
+
+Permite distinguir instantáneamente PDV que convirtieron de los que no,
+y por qué.
+
+
+--------------------------------------------------------------------------------
+COLUMNA H — Vendedor pedido
+Celda: H2
+Rango: Estirar a H500
+Formato: Texto
+Depende de: Columna A
+Únicamente Ruta 2
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!B:B},2,0),
+"Sin registro"))
+
+EXPLICACIÓN:
+Busca qué vendedor realizó la visita de Pedido/Relevamiento. Permite
+verificar si el mismo vendedor que abrió el PDV es quien toma el pedido
+(continuidad de relación) o si hay rotación.
+
+
+--------------------------------------------------------------------------------
+COLUMNA I — Fecha pedido
+Celda: I2
+Rango: Estirar a I500
+Formato: Fecha (Formato → Número → Fecha)
+Depende de: Columna A
+Únicamente Ruta 2
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!A:A},2,0),
+"Sin registro"))
+
+EXPLICACIÓN:
+Busca la fecha en que se realizó la visita de Pedido/Relevamiento.
+Fecha base para calcular si una entrega está dentro de 48hs o vencida.
+
+
+--------------------------------------------------------------------------------
+COLUMNA J — Fecha entrega programada
+Celda: J2
+Rango: Estirar a J500
+Formato: Fecha (Formato → Número → Fecha)
+Depende de: Columna A
+Múltiples fuentes
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!DC:DC},2,0)<>"",
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!DC:DC},2,0),
+    SI.ERROR(
+      BUSCARV(A2,{'Respuestas de formulario 1'!BL:BL,'Respuestas de formulario 1'!AQ:AQ},2,0),
+      "Sin fecha"
+    )
+  ),
+"Sin fecha"))
+
+EXPLICACIÓN:
+Busca la fecha programada de entrega en dos orígenes posibles:
+  1. Ruta 1 (col DC): "Fecha Programada Entrega a Nuevo PDV"
+     Para casos donde un Nuevo PDV compró pero no se le entregó en el momento
+  2. Ruta 2 (col AQ): "Fecha Posible de Entrega Pedido"
+     Para pedidos tomados que requieren entrega posterior
+
+Permite calcular si la entrega está vencida (DAYS > 2, es decir, >48hs).
+
+
+--------------------------------------------------------------------------------
+COLUMNA K — Vendedor entrega
+Celda: K2
+Rango: Estirar a K500
+Formato: Texto
+Depende de: Columna A
+Únicamente Ruta 3
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!B:B},2,0),
+"Sin registro"))
+
+EXPLICACIÓN:
+Busca qué vendedor registró la entrega. "Sin registro" significa que no hay
+entrega registrada en Ruta 3, aunque puede haber sido entrega inmediata en
+Ruta 1. Permite verificar si el ciclo se cerró con registro.
+
+
+--------------------------------------------------------------------------------
+COLUMNA L — Fecha entrega real
+Celda: L2
+Rango: Estirar a L500
+Formato: Fecha (Formato → Número → Fecha)
+Depende de: Columna A
+Múltiples fuentes
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!A:A},2,0),
+  SI.ERROR(
+    SI(
+      BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!CI:CI},2,0)="Sí",
+      BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!A:A},2,0),
+      "Sin registro"
+    ),
+  "Sin registro")
+))
+
+EXPLICACIÓN:
+Busca la fecha real de entrega en dos orígenes:
+  1. Ruta 3 (col BP + col A): Si hay registro de entrega posterior
+  2. Ruta 1 (col CI + col A): Si fue entrega inmediata en Nuevo PDV
+
+Cubre ambos flujos: entregas posteriores y entregas en el momento.
+
+
+--------------------------------------------------------------------------------
+COLUMNA M — Estado entrega
+Celda: M2 (nota: la fórmula usa M3 pero se pega en M2)
+Rango: Estirar a M500
+Formato: Texto
+Depende de: Columnas A, L, CI
+Múltiples fuentes
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(
+    CONTAR.SI('Respuestas de formulario 1'!BP:BP,A2)>0,
+    BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BQ:BQ},2,0),
+    SI.ERROR(
+      SI(
+        BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!CI:CI},2,0)="Sí",
+        "Total",
+        "Sin registro"
+      ),
+    "Sin registro")
+  ),
+"Sin registro"))
+
+EXPLICACIÓN:
+Determina el estado de la entrega con lógica condicional:
+  1. Si hay registro en Ruta 3 (CONTAR.SI > 0) → busca el estado en col BQ
+     Valor esperado: "Total" / "Parcial" / "No entregado"
+     NOTA: A veces aparece como "Entrega Total" / "Entrega Parcial" /
+     "No se entregó" según variaciones del formulario
+  2. Si no hay Ruta 3, verifica Ruta 1: ¿Se entregó en el momento (col CI)?
+     Si = "Sí" → estado = "Total"
+     Si ≠ "Sí" → "Sin registro"
+
+Protege contra el cortocircuito de BUSCARV: el SI.ERROR interno envuelve
+la operación de fecha para evitar que un formato inválido interrumpa
+la evaluación de las siguientes ramas.
+
+
+--------------------------------------------------------------------------------
+COLUMNA N — ¿Se cobró?
+Celda: N2 (nota: la fórmula usa N3 pero se pega en N2)
+Rango: Estirar a N500
+Formato: Texto (Sí / No / Sin registro)
+Depende de: Columnas A, CI, BQ, CD, BR
+Múltiples fuentes
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(
+    SI.ERROR(BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!CI:CI},2,0),"")="Sí",
+    "Sí",
+    SI(
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BQ:BQ},2,0)="Parcial",
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!CD:CD},2,0),
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BR:BR},2,0)
+    )
+  ),
+"Sin registro"))
+
+EXPLICACIÓN:
+Determina si se cobró la entrega con regla de negocio implícita:
+  1. Si fue entrega inmediata en Ruta 1 (col CI = "Sí") → se cobró
+     automáticamente (no se entrega sin cobrar)
+  2. Si fue Ruta 3 con entrega parcial (col BQ = "Parcial")
+     → busca cobro parcial en col CD
+  3. Si fue Ruta 3 con entrega total → busca cobro total en col BR
+
+Refleja la regla operativa de la negocio: las entregas inmediatas siempre
+se cierran con cobro en el mismo momento.
+
+
+--------------------------------------------------------------------------------
+COLUMNA O — Método de cobro
+Celda: O2 (nota: la fórmula usa O3 pero se pega en O2)
+Rango: Estirar a O500
+Formato: Texto (Contado / Transferencia / Ambos / Sin registro)
+Depende de: Columnas A, CI, BQ, K, CE, BS
+Múltiples fuentes
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!CI:CI},2,0)="Sí",
+    BUSCARV(A2,{'Respuestas de formulario 1'!G:G,'Respuestas de formulario 1'!K:K},2,0),
+    SI(
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BQ:BQ},2,0)="Parcial",
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!CE:CE},2,0),
+      BUSCARV(A2,{'Respuestas de formulario 1'!BP:BP,'Respuestas de formulario 1'!BS:BS},2,0)
+    )
+  ),
+"Sin registro"))
+
+EXPLICACIÓN:
+Determina el método de cobro (Contado / Transferencia / Ambos) con prioridad:
+  1. Si fue entrega inmediata Ruta 1 → método en col K
+  2. Si fue Ruta 3 parcial → método en col CE
+  3. Si fue Ruta 3 total → método en col BS
+
+Los tres campos tienen las mismas opciones. Permite analizar composición
+de cobranzas por método.
+
+
+--------------------------------------------------------------------------------
+COLUMNA P — Estado del ciclo
+Celda: P2 (nota: la fórmula usa P3 pero se pega en P2)
+Rango: Estirar a P500
+Formato: Texto
+Depende de: Columnas A a O
+COLUMNA CRÍTICA — Salida de la lógica de negocio
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(O(M2="Total",M2="Entrega Total"),
+    SI(N2="Sí","CLIENTE ACTIVO","ENTREGA SIN COBRO"),
+    SI(O(M2="Parcial",M2="Entrega Parcial"),
+      SI(J2="Sin fecha","ENTREGA PARCIAL SIN REPROGRAMAR","ENTREGA PARCIAL REPROGRAMADA"),
+      SI(O(M2="No entregado",M2="No se entregó"),
+        "ENTREGA FALLIDA",
+        SI(J2="Sin fecha",
+          SI(G2="Compró","ENTREGA INMEDIATA PENDIENTE",
+            SI(O(G2="No vende Alcohol",G2="No le interesa"),"DESCARTADO",
+              SI(G2="Sin registro",
+                SI(I2<>"Sin registro","ENTREGA PENDIENTE","SIN ACTIVIDAD"),
+                "RECONFIRMAR"
+              )
+            )
+          ),
+          SI(DAYS(HOY(),FECHANUMERO(TEXTO(J2,"DD/MM/YYYY")))>2,"ENTREGA VENCIDA","ENTREGA PENDIENTE")
+        )
+      )
+    )
+  ),
+"SIN DATOS"))
+
+EXPLICACIÓN — MATRIZ COMPLETA DE ESTADOS:
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ ESTADO                         │ CONDICIÓN                           │
+├──────────────────────────────────────────────────────────────────────┤
+│ CLIENTE ACTIVO                 │ Entrega Total/Entrega Total + Cobro │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA SIN COBRO              │ Entrega Total/Entrega Total + NO    │
+│                                │ Cobro (alerta roja — dinero sin     │
+│                                │ recuperar)                          │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA PARCIAL REPROGRAMADA   │ Entrega Parcial/Entrega Parcial +   │
+│                                │ Fecha nueva establecida             │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA PARCIAL SIN REPROGRAMAR│ Entrega Parcial/Entrega Parcial +   │
+│                                │ SIN fecha nueva (alerta)            │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA FALLIDA                │ Estado = No entregado/No se entregó │
+│                                │ (alerta roja)                       │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA INMEDIATA PENDIENTE    │ Compró en Ruta 1 + Sin registro de  │
+│                                │ Ruta 3 (entrega debe ser inmediata)│
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA VENCIDA                │ Tiene fecha programada + DAYS > 2   │
+│                                │ (>48hs sin entrega)                 │
+├──────────────────────────────────────────────────────────────────────┤
+│ ENTREGA PENDIENTE              │ Tiene pedido (I≠"Sin registro") +   │
+│                                │ Sin entrega. Días < umbral normal   │
+├──────────────────────────────────────────────────────────────────────┤
+│ RECONFIRMAR                    │ PDV dijo "Reconfirmar" u otra razón │
+│                                │ de no compra (requiere segunda      │
+│                                │ visita)                             │
+├──────────────────────────────────────────────────────────────────────┤
+│ DESCARTADO                     │ Razón terminal: "No vende Alcohol"  │
+│                                │ o "No le interesa" (no seguimiento) │
+├──────────────────────────────────────────────────────────────────────┤
+│ SIN ACTIVIDAD                  │ Sin Ruta 1, sin Ruta 2, sin Ruta 3  │
+│                                │ (PDV fantasma — revisar)            │
+├──────────────────────────────────────────────────────────────────────┤
+│ SIN DATOS                      │ Error en los datos de entrada       │
+│                                │ (fallida protección de errores)     │
+└──────────────────────────────────────────────────────────────────────┘
+
+NOTA SOBRE VARIACIONES DE TEXTO EN ESTADO ENTREGA:
+Google Forms genera columnas diferentes cuando se editan preguntas.
+El Estado entrega (col M) puede mostrar:
+  - Formato antiguo: "Total" / "Parcial" / "No entregado"
+  - Formato nuevo: "Entrega Total" / "Entrega Parcial" / "No se entregó"
+
+Por eso la fórmula P usa OR: O(M2="Total",M2="Entrega Total")
+Eso garantiza que ambas variaciones sean reconocidas.
+
+
+--------------------------------------------------------------------------------
+COLUMNA Q — Días en estado
+Celda: Q2 (nota: la fórmula usa Q3 pero se pega en Q2)
+Rango: Estirar a Q500
+Formato: Número
+Depende de: Columnas L, I, F
+ACTUALIZACIÓN AUTOMÁTICA DIARIA
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(L2<>"Sin registro",
+    DAYS(HOY(),FECHANUMERO(TEXTO(L2,"DD/MM/YYYY"))),
+    SI(I2<>"Sin registro",
+      DAYS(HOY(),FECHANUMERO(TEXTO(I2,"DD/MM/YYYY"))),
+      SI(F2<>"Sin registro",
+        DAYS(HOY(),FECHANUMERO(TEXTO(F2,"DD/MM/YYYY"))),
+        "Sin dato"
+      )
+    )
+  ),
+"Sin dato"))
+
+EXPLICACIÓN:
+Calcula cuántos días lleva el PDV en su estado actual, midiendo desde la
+fecha más reciente disponible en este orden de prioridad:
+  1. L2 (Fecha entrega real) — PDV ya entregado
+  2. I2 (Fecha pedido) — PDV con pedido sin entregar
+  3. F2 (Fecha primera visita) — PDV sin pedido aún
+
+COMPORTAMIENTO DINÁMICO:
+Usa HOY() que cambia automáticamente cada día. Un PDV que hoy tiene Q=3
+tendrá Q=4 mañana, Q=5 pasado, etc., sin intervención manual.
+Esto permite que el sistema se "autogestione" — los PDV llegan a umbrales
+de alerta (7 días para RECONFIRMAR, 2 días para ENTREGA PENDIENTE) de
+manera automática.
+
+Ejemplo de aplicación:
+  - Hoy: PDV con 6 días en RECONFIRMAR → alerta ⏳ EN ESPERA (sin acción)
+  - Mañana: Mismo PDV con 7 días → pasa automáticamente a 🟡 SEGUIMIENTO
+             (requiere contacto)
+
+
+--------------------------------------------------------------------------------
+COLUMNA R — Alerta
+Celda: R2 (nota: la fórmula usa R3 pero se pega en R2)
+Rango: Estirar a R500
+Formato: Texto (emojis + palabras)
+Depende de: Columnas P, Q, J
+COLUMNA FINAL — Indicador de acción
+ACTUALIZACIÓN AUTOMÁTICA DIARIA (via HOY() en P y Q)
+--------------------------------------------------------------------------------
+
+FÓRMULA:
+
+=SI(A2="","",SI.ERROR(
+  SI(P2="ENTREGA VENCIDA","🔴 URGENTE",
+    SI(P2="ENTREGA FALLIDA","🔴 URGENTE",
+      SI(P2="ENTREGA SIN COBRO","🔴 URGENTE",
+        SI(Y(P2="RECONFIRMAR",Q2>=7),"🟡 SEGUIMIENTO",
+          SI(Y(P2="RECONFIRMAR",Q2<7),"⏳ EN ESPERA",
+            SI(Y(P2="ENTREGA PARCIAL REPROGRAMADA",J2<>"Sin fecha",
+              SI.ERROR(DAYS(HOY(),FECHANUMERO(TEXTO(J2,"DD/MM/YYYY")))>2,FALSO)),"🔴 URGENTE",
+              SI(Y(P2="ENTREGA PENDIENTE",J2="Sin fecha",Q2>2),"🔴 URGENTE",
+                SI(P2="CLIENTE ACTIVO","🟢 OK",
+                  SI(P2="DESCARTADO","⚫ DESCARTADO",
+                    SI(P2="ENTREGA PENDIENTE","🟢 OK","⚪ SIN DATOS")
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  ),
+"⚪ SIN DATOS"))
+
+EXPLICACIÓN — MATRIZ DE ALERTAS:
+
+┌───────────────────────────────────────────────────────────────────┐
+│ ALERTA        │ COLOR │ CONDICIÓN                                 │
+├───────────────────────────────────────────────────────────────────┤
+│ 🔴 URGENTE    │ Rojo  │ Estado crítico: entregas vencidas,        │
+│               │       │ fallidas, sin cobro, o parcial            │
+│               │       │ reprogramada vencida                      │
+├───────────────────────────────────────────────────────────────────┤
+│ 🟡 SEGUIMIENTO│ Ama.  │ RECONFIRMAR con ≥7 días. Requiere 2da     │
+│               │       │ visita de contacto                        │
+├───────────────────────────────────────────────────────────────────┤
+│ ⏳ EN ESPERA   │ Gris  │ RECONFIRMAR con <7 días. Todavía en plazo │
+│               │       │ antes de segunda visita                   │
+├───────────────────────────────────────────────────────────────────┤
+│ 🟢 OK         │ Verde │ CLIENTE ACTIVO cerrado o ENTREGA PENDIENTE│
+│               │       │ dentro de plazo normal                    │
+├───────────────────────────────────────────────────────────────────┤
+│ ⚫ DESCARTADO  │ Negro │ PDV con razón terminal. Sin seguimiento   │
+│               │       │ (No vende Alcohol, No le interesa)        │
+├───────────────────────────────────────────────────────────────────┤
+│ ⚪ SIN DATOS   │ Gris  │ Información insuficiente (error de datos) │
+│               │       │ o estado no clasificable                  │
+└───────────────────────────────────────────────────────────────────┘
+
+ORDEN DE EVALUACIÓN (importante):
+La fórmula evalúa en este orden específico. La rama que se activa primero
+gana — las posteriores no se evalúan:
+  1. ENTREGA VENCIDA → 🔴 URGENTE
+  2. ENTREGA FALLIDA → 🔴 URGENTE
+  3. ENTREGA SIN COBRO → 🔴 URGENTE
+  4. RECONFIRMAR ≥7 días → 🟡 SEGUIMIENTO
+  5. RECONFIRMAR <7 días → ⏳ EN ESPERA
+  6. ENTREGA PARCIAL REPROGRAMADA vencida → 🔴 URGENTE
+  7. ENTREGA PENDIENTE sin fecha >2 días → 🔴 URGENTE
+  8. CLIENTE ACTIVO → 🟢 OK
+  9. DESCARTADO → ⚫ DESCARTADO
+  10. ENTREGA PENDIENTE → 🟢 OK
+  11. (default) → ⚪ SIN DATOS
+
+PROTECCIÓN CONTRA ERRORES:
+La rama de ENTREGA PARCIAL REPROGRAMADA está protegida:
+  SI.ERROR(DAYS(HOY(),FECHANUMERO(TEXTO(J2,"DD/MM/YYYY")))>2,FALSO)
+Si la fecha en J tiene formato inválido o no se puede parsear, devuelve
+FALSO en lugar de interrumpir la evaluación. Esto previene que un error
+de formato en una celda particular cancele toda la fórmula.
+
+
+================================================================================
+5. LÓGICA DE CÁLCULO — ESTADOS Y ALERTAS
+================================================================================
+
+ESTRUCTURA DE TOMA DE DECISIONES:
+
+La hoja implementa una máquina de estados basada en la trayectoria del PDV
+a través de las tres rutas:
+
+1. RUTA 1 (Nuevo PDV) → Se captura dirección, tipo, zona, resultado
+   Posibles resultados: "Compró" o razones específicas de rechazo
+
+2. RUTA 2 (Pedido/Relevamiento) → Se captura si se tomó pedido o no
+   Posibles resultados: "Se tomó Pedido" o "No se tomó Pedido" + inventario
+
+3. RUTA 3 (Entrega) → Se registra el estado de entrega y cobro
+   Posibles resultados: Total / Parcial / No entregado
+
+TRANSICIONES ESPERADAS (ciclo normal):
+Ruta 1 → Ruta 2 → Ruta 3
+
+Pero también hay ciclos alternativos (casos reales):
+  - Ruta 1 → Ruta 3 (sin Ruta 2): Entrega inmediata de Nuevo PDV
+  - Ruta 2 → Ruta 3: Pedido pull (cliente llama, sin Ruta 1 previa)
+  - Ruta 1 sin Ruta 2 ni Ruta 3: PDV en prospección / seguimiento
+  - Solo Ruta 1: PDV antiguo del negocio, sin registro actual
+
+UMBRALES CRÍTICOS:
+
+Días en estado:
+  - 2 días (48 horas): umbral de "vencimiento" para ENTREGA PENDIENTE
+  - 7 días (1 semana): umbral de "seguimiento necesario" para RECONFIRMAR
+
+Estados finales (sin más seguimiento):
+  - CLIENTE ACTIVO (compró + cobró)
+  - DESCARTADO (razón terminal)
+  - SIN ACTIVIDAD (fantasma)
+
+
+================================================================================
+6. COMPORTAMIENTO DINÁMICO — ACTUALIZACIÓN AUTOMÁTICA
+================================================================================
+
+La hoja se autoactualiza todos los días sin intervención manual:
+
+1. COLUMNA Q (Días en estado):
+   - Usa HOY() que cambia diariamente
+   - Un PDV que hoy tiene 6 días → mañana tiene 7 días automáticamente
+   - Esto dispara el cambio de alerta en columna R (sin tocar fórmula)
+
+2. COLUMNA P (Estado del ciclo):
+   - Se recalcula cuando:
+     a) Entra un nuevo registro en Respuestas (nueva Ruta 1/2/3)
+     b) Se modifica un registro existente
+     c) Q cambia (por HOY())
+
+3. COLUMNA R (Alerta):
+   - Se recalcula automáticamente cuando P y Q cambian
+   - Un PDV que hoy es ⏳ EN ESPERA (6 días) pasa a 🟡 SEGUIMIENTO (7 días)
+     sin que el usuario toque nada
+
+4. COLUMNA A (Dirección):
+   - UNIQUE se recalcula cuando entra una nueva dirección en las Rutas
+   - Las nuevas filas se agregan automáticamente
+
+IMPLICACIÓN OPERATIVA:
+El sistema es "autogestible". Una vez que la fórmula está en lugar,
+el Sheet trabaja solo. Los PDV avanzan automáticamente de alerta a medida
+que pasan los días, permitiendo que el equipo sepa sin revisar manualmente
+quién necesita acción hoy.
+
+
+================================================================================
+7. AUDITORÍA Y CORRECCIONES REALIZADAS (Sesión 17/04/2026)
+================================================================================
+
+PROBLEMA 1: CLIENTE ACTIVO → ⚪ SIN DATOS (Filas 83, 129, 182, 183)
+Causa: Col P comparaba `M2="Total"` pero algunos registros tenían
+       "Entrega Total" (con palabra Entrega adelante)
+Corrección: Reemplazar comparaciones en P por O(M2="Total",M2="Entrega Total")
+Estado: ✅ CERRADO — Ya aplicado en P3
+
+PROBLEMA 2: ENTREGA PENDIENTE sin fecha con días >2 → ⚪ SIN DATOS
+Filas afectadas: 177-181
+Causa: Pedidos antiguos sin fecha de entrega programada ni registro de Ruta 3
+Corrección: Agregar rama en R para capturar Y(P2="ENTREGA PENDIENTE",
+            J2="Sin fecha",Q2>2) → "🔴 URGENTE"
+Estado: ✅ CERRADO — Rama ya está en R3
+
+PROBLEMA 3: RECONFIRMAR con 7 días exactos → ⚪ SIN DATOS
+Fila afectada: 129
+Causa: Condición `Q2>7` excluía exactamente 7 días (requería estrictamente >7)
+Corrección: Cambiar `Q2>7` por `Q2>=7`
+Estado: ✅ CERRADO — Fórmula ya actualizada en R3
+
+PROBLEMA 4: DESCARTADO → ⚪ SIN DATOS (16 filas)
+Filas afectadas: 6, 10, 12, 14, 15, 18, 24, 31, 40, 65, 73, 79, 124, 127, 146, 155
+Causa: Col R no tenía rama para estado DESCARTADO
+Corrección: Agregar rama SI(P2="DESCARTADO","⚫ DESCARTADO",...)
+Decisión de diseño: Usar ⚫ DESCARTADO para diferenciar de ⚪ SIN DATOS
+                    (que se usa para PDV aún en evaluación o sin información)
+Estado: ✅ CERRADO — Rama ya está en R3
+
+PROBLEMA 5: RECONFIRMAR <7 días → ⚪ SIN DATOS
+Filas afectadas: 134-175 (excepto CLIENTE ACTIVO y DESCARTADO)
+Causa: No había alerta para RECONFIRMAR en plazo normal
+Corrección: Agregar rama SI(Y(P2="RECONFIRMAR",Q2<7),"⏳ EN ESPERA",...)
+Decisión de diseño: Usar ⏳ EN ESPERA para indicar "sin acción requerida aún"
+Estado: ✅ CERRADO — Rama ya está en R3
+
+RESUMEN POST-AUDITORÍA:
+Distribución de alertas actual:
+  - 🟡 SEGUIMIENTO: 102 filas
+  - ⚪ SIN DATOS: 33 filas (reducido de 64 en la versión anterior)
+  - 🟢 OK: 28 filas
+  - ⚫ DESCARTADO: 16 filas
+  - 🔴 URGENTE: 7 filas
+  Total: 186 PDV únicos
+
+Las 33 restantes en ⚪ SIN DATOS son casos atípicos (errores de datos
+sin solución automática, o estados no previstos en la lógica).
+
+
+================================================================================
+8. ESTADO ACTUAL DEL SISTEMA
+================================================================================
+
+FUNCIONALIDAD: 100% operativa
+
+Columnas activas: A (dirección) a R (alerta)
+Rango de datos: Filas 1-186 (+ espacio para crecimiento hasta fila 500)
+Actualización: Automática diaria + manual con nuevos registros
+Sincronización: CSV exportado el 17/04/2026 a las [hora no disponible]
+
+INTEGRIDAD DE DATOS:
+- Todas las fórmulas están aplicadas correctamente
+- Protecciones contra errores de formato están en lugar
+- Cruces de datos entre las tres rutas funcionan correctamente
+
+CASOS ESPECIALES DOCUMENTADOS:
+- Filas 177-181: Pedidos históricos sin fecha de entrega programada
+  Comportamiento: Muestran 🔴 URGENTE (correcto — son vencidos)
+  Acción requerida: Completar registro de Ruta 3 o agregar fecha estimada
+
+- Filas 134-176 (parcialmente): RECONFIRMAR con <7 días
+  Comportamiento: Muestran ⏳ EN ESPERA (correcto — en plazo)
+  Acción requerida: Ninguna hasta que lleguen a 7 días
+
+
+================================================================================
+9. NOTAS OPERATIVAS
+================================================================================
+
+PARA LOS VENDEDORES:
+
+Los pedidos pull (cuando el cliente llama para pedir) DEBEN registrarse
+en Ruta 2, aunque el flujo sea inbound. No saltear de Ruta 1 directo a
+Ruta 3. El patrón correcto siempre es:
+  Ruta 1 (Nuevo PDV) → Ruta 2 (Pedido/Relevamiento) → Ruta 3 (Entrega)
+
+Incluso si en Ruta 1 el cliente ya dijo "compré" y se entregó en el momento,
+si hay una segunda compra posterior, esa DEBE IR en Ruta 2 primero.
+
+PARA LA DIRECCIÓN:
+
+Filtrar la hoja por columna R para identificar rápidamente:
+  - 🔴 URGENTE: Acción inmediata requerida (entrega vencida, sin cobro, fallida)
+  - 🟡 SEGUIMIENTO: Contactos que necesitan segunda visita este día
+  - ⏳ EN ESPERA: Contactos en evaluación, sin acción requerida aún
+  - 🟢 OK: Ciclos cerrados, no requieren seguimiento
+  - ⚫ DESCARTADO: PDV rechazados, no seguir (guardados para referencia)
+
+El sistema mantiene histórico de TODOS los intentos (comprados y no)
+para análisis post-venta y retroalimentación sobre razones de rechazo.
+
+FORMATO DE FECHA EN COLUMNAS F, I, J, L, Q:
+Aplicar Formato → Número → Fecha a las columnas F, I, J, L
+Dejar Q como Número (son días, no fechas).
+Esto hace que las fechas se muestren en formato DD/MM/YYYY.
+
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
+Versión: 2.0 (Post-auditoría 17/04/2026)
+Proyecto: DIPVE — Distribución de Vinos
+Hoja: Seguimiento de Ciclo
+URL del Sheet: https://docs.google.com/spreadsheets/d/1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A/
+================================================================================

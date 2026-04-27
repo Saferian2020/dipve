@@ -1,0 +1,1065 @@
+================================================================================
+DIPVE — DASHBOARD INTERACTIVO DE PERFORMANCE DE VENDEDORES
+INFORME INTEGRAL DEL PROYECTO
+================================================================================
+Fecha de elaboración: 07 de abril de 2026
+Última actualización: 10 de abril de 2026
+Versión: 3.0
+Elaborado por: Daniel Gallardo
+================================================================================
+
+
+ÍNDICE
+------
+1.  Resumen Ejecutivo
+2.  Contexto y Problema que Resuelve
+3.  El Equipo Comercial
+4.  Fuente de Datos: Google Form y Google Sheet
+5.  Análisis del Estado Actual del Sistema
+6.  Errores y Correcciones Realizadas
+7.  Descripción del Dashboard DIPVE
+8.  Arquitectura Técnica
+9.  Estado de Avance del Proyecto
+10. Próximos Pasos
+11. Notas para Claude Code (Contexto Técnico Detallado)
+12. Entorno de Desarrollo
+13. Estándares de Código y Estructura de Carpetas
+14. Seguridad
+15. Prompts para Claude Code por Sesión
+
+
+================================================================================
+1. RESUMEN EJECUTIVO
+================================================================================
+
+DIPVE (Dashboard Interactivo de Performance de Vendedores) es un sistema de
+análisis y seguimiento de la actividad comercial para una operación de
+distribución de vinos. El proyecto nació de la necesidad de centralizar,
+visualizar y analizar en tiempo real el trabajo de campo del equipo de ventas,
+conformado por tres vendedores: Javier, Karen y Daniel.
+
+El sistema se apoya en un formulario de Google (Google Forms) que los
+vendedores completan desde sus celulares después de cada visita. Esa
+información cae automáticamente en un Google Sheet que actúa como base de
+datos central. El dashboard lee esos datos y los presenta en un panel web
+interactivo, accesible desde cualquier dispositivo y desde cualquier lugar
+del mundo.
+
+El objetivo del dashboard es brindar a la dirección una visión clara y
+filtrada por período (semanal y mensual) de los indicadores clave de
+performance (KPIs), incluyendo: nuevos puntos de venta visitados, tasas de
+conversión, pedidos tomados, relevamiento de inventario y competencia,
+seguimiento del ciclo pedido→entrega, y relevamiento de precios propios
+y de la competencia.
+
+
+================================================================================
+2. CONTEXTO Y PROBLEMA QUE RESUELVE
+================================================================================
+
+CONTEXTO DEL NEGOCIO:
+La operación distribuye dos marcas de vinos en la zona del Gran Buenos Aires:
+- Val Sud (5 productos)
+- El Halcón del Defe (2 productos)
+
+Los vendedores recorren diariamente puntos de venta (kioscos, almacenes,
+supermercados chinos, etc.) en sus zonas asignadas. Hasta el momento de
+implementar este sistema, no existía una forma estructurada de registrar,
+centralizar ni analizar esa actividad.
+
+PROBLEMA QUE RESUELVE:
+- Falta de visibilidad sobre lo que hace cada vendedor en el campo
+- Imposibilidad de medir la tasa de conversión (cuántos PDV visitados terminan
+  comprando vs. cuántos rechazan el producto)
+- Desconocimiento del estado de inventario en los puntos de venta existentes
+- Sin registro de las razones por las cuales los clientes no compran
+- Sin seguimiento del relevamiento de precios de la competencia
+- Sin control del proceso de entregas y cobros
+- Sin comparativa de rendimiento semana a semana por vendedor
+
+SOLUCIÓN IMPLEMENTADA:
+Un sistema de tres capas:
+  Capa 1 → Google Form: captura la actividad en campo (móvil-first)
+  Capa 2 → Google Sheet: almacena y organiza los datos automáticamente
+  Capa 3 → DIPVE Dashboard: visualiza y analiza los datos con filtros
+
+
+================================================================================
+3. EL EQUIPO COMERCIAL
+================================================================================
+
+VENDEDORES:
+┌──────────┬────────────┬──────────────────────────────────────────────────┐
+│ Vendedor │ Zona       │ Estado al 07/04/2026                             │
+├──────────┼────────────┼──────────────────────────────────────────────────┤
+│ Javier   │ Zona A1    │ Más activo. ~73 Nuevos PDV visitados, 6 ventas   │
+│ Karen    │ Zona B1    │ 12 Nuevos PDV visitados en abril 2026, 1 venta   │
+│ Daniel   │ Zona B1    │ 1 pedido tomado (31/3/2026), 2 relevamientos     │
+└──────────┴────────────┴──────────────────────────────────────────────────┘
+
+CATÁLOGO DE PRODUCTOS:
+Val Sud:
+  - Red Blend Magnum 1125ml
+  - Red Blend Classic 750ml
+  - Gran Malbec 750ml
+  - Bonarda Malbec 750ml
+  - Bonarda Syrah 750ml
+
+El Halcón del Defe:
+  - Tinto Clásico 1125ml
+  - Tinto Patero 1125ml
+
+COMPETIDORES RELEVADOS EN CAMPO:
+  - Viñas de Balbo
+  - Hormiga Negra Malbec
+  - Prófugo Malbec
+
+ZONAS DE COBERTURA:
+  - Zona A1: Javier (Hurlingham y alrededores — Av. Julio A. Roca y zonas aledañas)
+  - Zona B1: Karen y Daniel (zona por confirmar geográficamente)
+
+
+================================================================================
+4. FUENTE DE DATOS: GOOGLE FORM Y GOOGLE SHEET
+================================================================================
+
+GOOGLE FORM — "REPORTE VENDEDORES":
+URL (edición): https://docs.google.com/forms/d/1CxR9THKaaLu9r0Bx8eQY4LvjSYhSXPSptToaoHMZdlw/edit
+Respuestas totales al 07/04/2026: ~92
+
+El formulario tiene 14 secciones y 3 rutas principales según el tipo de visita:
+
+  RUTA 1 — NUEVO PDV (Secciones 1-4):
+  Datos capturados: Vendedor, Zona, Tipo PDV, Dirección, Nombre PDV,
+  NombreDueño, Compró?, Productos vendidos, Forma de pago, Precios competencia,
+  Material POP requerido, Razón de no compra.
+  Campos agregados el 07/04/2026: Remito Número (obligatorio)
+  Campos agregados el 10/04/2026: "¿Se entregó el producto en el momento?"
+    (Sí/No, visible solo cuando Compró? = Sí). Si la respuesta es No,
+    se solicita la Fecha posible de entrega.
+
+  RUTA 2 — TOMA DE PEDIDO / RELEVAMIENTO (Secciones 5-8):
+  Datos capturados: Zona, Dirección, Link Maps, Resultado (Se tomó/No se tomó
+  pedido), Productos pedidos (hasta 5), Cantidades, Precios propios vs
+  competencia, Estado de inventario por producto.
+  Campos agregados el 10/04/2026: "Fecha posible de entrega" (visible solo
+    cuando Resultado = "Se tomó Pedido").
+
+  NOTA SOBRE FLUJO DE ENTREGAS EN NUEVO PDV:
+  Cuando un vendedor visita un Nuevo PDV y el cliente compra, la entrega
+  puede ocurrir en el momento (venta directa) o en una fecha posterior
+  (requiere segunda visita de entrega). El campo "¿Se entregó en el momento?"
+  captura esta bifurcación. Si la entrega es inmediata, no se genera un
+  registro de entrega posterior. Si no es inmediata, el registro de entrega
+  posterior se cruza con este pedido usando la dirección como clave.
+
+  NOTA SOBRE LINK DE GOOGLE MAPS:
+  Los vendedores copian el link desde la app Google Maps en iOS usando
+  "Compartir → Copiar". Esto genera links del tipo https://maps.app.goo.gl/XXXXXX
+  (links cortos que redirigen). Este formato NO es confiable como clave de
+  cruce entre registros porque el mismo lugar copiado dos veces puede generar
+  códigos distintos. La clave de cruce confiable es la DIRECCIÓN DE TEXTO
+  que los vendedores también copian y pegan en el formulario.
+  Para PDV sin ubicación en Google Maps ("ventanitas"), el link es aproximado
+  y la dirección de texto puede ser imprecisa — estos casos quedan como
+  "sin match exacto" en el seguimiento de entregas.
+
+  RUTA 3 — ENTREGA (Secciones 9-14):
+  Datos capturados: Zona, Dirección, Estado de entrega, Se cobró, Método cobro,
+  Razón de no cobro, Productos faltantes, Motivo entrega parcial, Fecha nueva.
+
+GOOGLE SHEET — "REPORTE VENDEDORES (Respuestas)":
+ID: 1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A
+URL: https://docs.google.com/spreadsheets/d/1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A/edit?usp=sharing
+
+ESTRUCTURA DEL SHEET (5 hojas):
+┌────────────────────────────┬───────────────┬────────────────────────────────────────┐
+│ Hoja                       │ GID           │ Descripción                            │
+├────────────────────────────┼───────────────┼────────────────────────────────────────┤
+│ Respuestas de formulario 1 │ 401974834     │ Datos crudos, ~100 columnas. NO TOCAR  │
+│ Nuevos PDV                 │ 1105327068    │ Filtrado por tipo = "Nuevo PDV"         │
+│ Pedidos Tomados            │ (verificar)   │ Filtrado por resultado = "Se tomó"      │
+│ Inventario PDV             │ (verificar)   │ Filtrado por resultado = "No se tomó"   │
+│ KPI                        │ 2092043606    │ Indicadores calculados con COUNTIFS     │
+└────────────────────────────┴───────────────┴────────────────────────────────────────┘
+
+NOTA IMPORTANTE SOBRE LAS COLUMNAS:
+El Sheet tiene ~100 columnas porque Google Forms genera una columna nueva por
+cada pregunta, incluyendo las versiones anteriores de preguntas renombradas.
+Esto es comportamiento normal y esperado. Las columnas clave son:
+  A   = Marca temporal (fecha/hora)
+  B   = Vendedor
+  R   = Tipo de Visita
+  I   = ¿Compró Producto? (Sí/No)
+  W   = Razón de no compra
+  AF  = Zona
+  AG  = Resultado de visita (Se tomó/No se tomó Pedido)
+  BI  = Nombre PDV (campo renombrado de "Nombre Cliente")
+  AI, AK, AL, AM, CT = Productos pedidos (slots 1 a 5)
+  AJ, AN, AO, AP, CU = Cantidades pedidas (slots 1 a 5)
+  CK-CQ = Estado de inventario por producto
+  BN  = Estado de entrega
+  BO  = ¿Se cobró?
+  BP  = Método de cobro
+
+  COLUMNAS NUEVAS (agregadas 10/04/2026 — índices a verificar en el Sheet
+  después de la primera respuesta con los campos nuevos):
+  - "¿Se entregó el producto en el momento?" (Ruta 1, cuando Compró = Sí)
+  - "Fecha posible de entrega" en Ruta 1 (cuando no se entregó en el momento)
+  - "Fecha posible de entrega" en Ruta 2 (cuando se tomó pedido)
+  IMPORTANTE: Google Forms agrega estas columnas al final del Sheet cuando
+  se recibe la primera respuesta que las incluye. Verificar índices reales
+  abriendo el Sheet y leyendo los headers de las últimas columnas.
+
+URL DE ACCESO CSV SIN API KEY:
+  https://docs.google.com/spreadsheets/d/1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A/export?format=csv&gid={GID}
+  Reemplazar {GID} con el número de la hoja que se quiere leer.
+
+
+================================================================================
+5. ANÁLISIS DEL ESTADO ACTUAL DEL SISTEMA
+================================================================================
+
+DISTRIBUCIÓN DE REGISTROS AL 07/04/2026:
+  Total de respuestas en el Sheet: ~92
+  - Registros de prueba (feb 2026, datos vacíos): 5
+  - Registros reales de Nuevo PDV — Javier: ~73 (Zona A1)
+  - Registros reales de Nuevo PDV — Karen: 12 (Zona B1, todos en abril)
+  - Registros de Pedido/Relevamiento — Daniel: 2 reales (+ pruebas)
+  - Registros de Pedido/Relevamiento — Karen: 1 real
+  - Pedidos tomados reales: 1 (Daniel, 31/03/2026, 20 cajas Val Sud Magnum)
+  - Registros de Inventario PDV reales: 1 (Daniel, fila 55)
+  - Registros de Entrega: 0 (el proceso de entregas no usa el formulario aún)
+
+INDICADORES KPI GENERALES (acumulado total, sin filtro de fecha):
+  Total visitas: 92
+  Nuevos PDV visitados: 85
+  Tomas de pedido: 7 (mayoría pruebas, 2 reales)
+  Entregas: 0
+
+CONVERSIÓN NUEVOS PDV (acumulada):
+  Compraron: 7
+  No compraron: 78
+  Tasa de conversión general: 8.24%
+  Tasa Javier: 8.22%
+  Tasa Karen: 8.33%
+  Tasa Daniel: 0.00%
+
+RAZONES DE NO COMPRA (acumuladas):
+  Reconfirmar: 57
+  No vende Alcohol: 6
+  No le interesa: 6
+  No rota el producto: 1
+  Precio: 0
+  Pide consignación: 0
+  No tiene espacio: 0
+
+TABLA DE PERFORMANCE POR VENDEDOR:
+┌──────────┬───────────────┬────────────┬───────────┬────────────┬─────────┬──────────┐
+│ Vendedor │ Total Visitas │ Nuevos PDV │ Compraron │ Tasa Conv. │ Pedidos │ Entregas │
+├──────────┼───────────────┼────────────┼───────────┼────────────┼─────────┼──────────┤
+│ JAVIER   │ 76            │ 73         │ 6         │ 8.22%      │ 3       │ 0        │
+│ KAREN    │ 13            │ 12         │ 1         │ 8.33%      │ 1       │ 0        │
+│ DANIEL   │ 2             │ 0          │ 0         │ 0.00%      │ 2       │ 0        │
+└──────────┴───────────────┴────────────┴───────────┴────────────┴─────────┴──────────┘
+
+ESTADO DEL INVENTARIO EN PDV (único relevamiento real — fila 55, Daniel):
+  Todos los 7 productos: > 5 cajas en el punto de venta relevado
+
+
+================================================================================
+6. ERRORES Y CORRECCIONES REALIZADAS
+================================================================================
+
+CORRECCIONES APLICADAS AL SHEET EL 07/04/2026:
+
+  1. KPI A25 VACÍO → CORREGIDO
+     Problema: La fila de Daniel en la tabla de vendedores no tenía nombre.
+     Solución: Se escribió "Daniel" en la celda A25 de la hoja KPI.
+
+  2. KAREN NUEVOS PDV EN KPI MOSTRABA 7 → CONFIRMADO OK
+     Problema: La fórmula de KPI parecía subestimar los Nuevos PDV de Karen.
+     Solución: La fórmula CONTAR.SI.CONJUNTO era correcta. Karen tiene 12
+     Nuevos PDV reales (todos registrados en abril 2026). El KPI lo refleja
+     correctamente.
+
+  3. FORMATO % EN TASA DE CONVERSIÓN DE KAREN → CORREGIDO
+     Problema: La celda E24 (Tasa Conv. de Karen) mostraba 0.0833... en lugar
+     de 8.33% como el resto de los vendedores.
+     Solución: Se aplicó formato de porcentaje (Ctrl+Shift+5) a la celda E24.
+
+CORRECCIONES APLICADAS AL DASHBOARD (Sesiones 1-4, 08/04/2026):
+
+  4. BUG DE PARSEO DE FECHAS → CORREGIDO EN sheetParser.js
+     Problema: new Date("DD/MM/YYYY") interpretaba el formato argentino como
+     MM/DD (anglosajón), desplazando las fechas 4 meses.
+     Solución: Regex explícito antes del fallback nativo en parseDate().
+
+  5. ÍNDICES DE COLUMNA INCORRECTOS → CORREGIDOS EN sheetConfig.js
+     Problema: tipoPDV apuntaba al índice 9 (Producto 1) en lugar de 4
+     (Punto de Venta). razonNoCompra apuntaba al índice 22 (Cantidad 2 Cajas)
+     en lugar de 27 (Razón). estadoEntrega apuntaba al índice 65 en lugar de 69.
+     Solución: Verificación contra headers reales del Sheet el 08/04/2026.
+
+ERRORES IDENTIFICADOS PERO PENDIENTES DE CORRECCIÓN EN EL SHEET:
+  - Sin filtro por período en la hoja KPI (se resuelve en el dashboard DIPVE)
+  - Sin métricas de productos en la hoja KPI (incluido en el dashboard DIPVE)
+
+OBSERVACIONES OPERATIVAS (no son errores técnicos):
+  - Las entregas aún no se registran via formulario de forma activa
+  - Los pedidos tienen muy pocos registros reales todavía
+  - Algunos PDV tienen WhatsApp en formato inválido (ej: 0000000001) cuando
+    el contacto no quiso dar el número — esto es intencional, no un error
+  - Los índices de columnas de precios (precioCompetidores y precioValSud)
+    no fueron verificados contra el Sheet real — pendiente de verificación
+    en Sesión 6 si PreciosPanel retorna vacío
+
+
+================================================================================
+7. DESCRIPCIÓN DEL DASHBOARD DIPVE
+================================================================================
+
+DEFINICIÓN:
+DIPVE es una aplicación web que lee los datos del Google Sheet en tiempo real
+y los presenta en un panel visual interactivo con filtros por semana y mes.
+Accesible desde cualquier dispositivo (computadora, tablet, celular) y desde
+cualquier lugar del mundo, sin instalación ni login.
+
+CASO DE USO PRINCIPAL:
+Reunión de gestión semanal de vendedores, que ocurre los viernes (o puede
+reprogramarse al lunes siguiente). El responsable abre el dashboard, selecciona
+"Semana actual" y analiza la performance del equipo en el período.
+
+ESTRUCTURA DEL DASHBOARD (versión rediseñada — Sesiones 6-8):
+
+  BARRA DE RESUMEN EJECUTIVO (sticky, siempre visible):
+  - 4 KPIs críticos: Visitas semana | Conversión | Pedidos tomados |
+    Delta vs semana anterior (↑↓ con número)
+  - Permite leer el estado de la semana en 10 segundos
+
+  TAB 1 — EQUIPO:
+  - Tabla comparativa Javier / Karen / Daniel con mini-barras de progreso
+  - Gráfico de tendencia semanal (líneas, últimas 4 semanas) por vendedor
+  - Desglose de conversión por tipo de PDV (kiosco, almacén, supermercado)
+  - Desglose de conversión por zona (A1 vs B1)
+
+  TAB 2 — VENTAS:
+  - Embudo visual: Visitados → Interesados → Compraron (con % en cada paso)
+  - Gráfico de barras: razones de rechazo ordenadas por frecuencia
+  - Ranking de productos por cajas pedidas con zona de origen
+  - Ticket promedio por PDV (cajas promedio por pedido)
+
+  TAB 3 — PRECIOS:
+  - Tabla Val Sud + El Halcón: precio promedio / mínimo / máximo por zona
+  - Tabla Competidores (Viñas de Balbo / Hormiga Negra / Prófugo):
+    precio promedio / mínimo / máximo por zona
+  - Cantidad de relevamientos por producto y período
+
+  TAB 4 — PEDIDOS Y ENTREGAS:
+  - Tabla de pedidos tomados en el período con fecha posible de entrega
+  - Tabla de pedidos pendientes de entrega (sin entrega registrada)
+  - Tabla de entregas realizadas cruzadas con su pedido de origen
+  - Indicador: % de pedidos que cerraron con entrega confirmada
+  - Nota visible para casos sin match exacto (PDV sin dirección estable)
+
+FILTROS GLOBALES:
+  - Selector de semana (con botón "Semana actual")
+  - Selector de mes (con botón "Mes actual")
+  - Opción de rango de fechas personalizado
+  - Todos los tabs se actualizan simultáneamente al cambiar el filtro
+
+CARACTERÍSTICAS TÉCNICAS:
+  - 100% web, sin instalación, sin login
+  - Lee datos directamente del Google Sheet (acceso público)
+  - Responsive (funciona en computadora y en celular)
+  - Datos actualizados en tiempo real (caché de 5 minutos en memoria)
+  - URL pública en producción: https://dipve.vercel.app/
+
+
+================================================================================
+8. ARQUITECTURA TÉCNICA
+================================================================================
+
+FLUJO DE DATOS:
+  Vendedor (celular) → Google Form → Google Sheet → Dashboard DIPVE → Usuario
+
+STACK TECNOLÓGICO:
+  Frontend:       React + Vite
+  Estilos:        Tailwind CSS
+  Gráficos:       Recharts
+  Parsing CSV:    papaparse
+  Íconos:         Lucide React
+  Deploy:         Vercel (plan Hobby, gratuito)
+  Testing:        Vitest + React Testing Library
+
+FUENTE DE DATOS:
+  No se usa backend ni API Key. El dashboard lee el Google Sheet directamente
+  via la URL de exportación CSV pública:
+  https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}
+
+  SHEET_ID: 1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A
+
+PRINCIPIOS DE DISEÑO:
+  - Sin backend: lee el Sheet directamente como CSV público
+  - Solo lectura: el dashboard NUNCA escribe en el Sheet
+  - Móvil-first: diseñado para ser usado desde el celular
+  - Sin login: accesible directamente por URL
+  - Caché en memoria: 5 minutos, NUNCA en localStorage
+
+LÓGICA DE CRUCE PEDIDO → ENTREGA:
+  Los pedidos (Ruta 1 con entrega diferida y Ruta 2) se cruzan con los
+  registros de entrega (Ruta 3) usando la dirección de texto como clave.
+  El algoritmo de matching normaliza ambas cadenas (minúsculas, sin tildes,
+  sin puntuación extra) antes de comparar. Los casos sin match exacto se
+  marcan como "pendiente de confirmar" en el dashboard.
+  El link de Google Maps NO se usa como clave de cruce (ver Sección 4).
+
+CAPAS DE LA APLICACIÓN:
+  /src/utils/         → Lógica de negocio (parsing, cálculo de KPIs, fechas)
+  /src/hooks/         → Estado y fetch de datos (useSheetData, usePeriodFilter)
+  /src/components/    → Interfaz de usuario (paneles, gráficos, filtros)
+  /src/constants/     → Catálogos fijos (vendedores, productos, zonas)
+
+
+================================================================================
+9. ESTADO DE AVANCE DEL PROYECTO
+================================================================================
+
+┌────────────────────────────────────────────────────────┬──────────────┬─────┐
+│ Hito                                                   │ Estado       │  %  │
+├────────────────────────────────────────────────────────┼──────────────┼─────┤
+│ Diseño y configuración del Google Form (14 secciones)  │ Completado   │ 100 │
+│ Conexión Form → Sheet operativa                        │ Completado   │ 100 │
+│ Hojas auxiliares con fórmulas FILTER                   │ Completado   │ 100 │
+│ Hoja KPI con indicadores básicos                       │ Completado   │ 100 │
+│ Correcciones al KPI (Daniel, Karen formato, conteo)    │ Completado   │ 100 │
+│ Campo "Remito Número" en sección Entrega del Form      │ Completado   │ 100 │
+│ Campo "¿Se entregó en el momento?" en Ruta 1           │ Completado   │ 100 │
+│ Campo "Fecha posible de entrega" en Ruta 2             │ Completado   │ 100 │
+│ Dashboard DIPVE v1 — Sesiones 1 a 5                    │ Completado   │ 100 │
+│ Deploy inicial en Vercel (https://dipve.vercel.app/)   │ Completado   │ 100 │
+│ Rediseño dashboard — Barra ejecutiva + nuevos tabs     │ Pendiente    │   0 │
+│ Tab Equipo con tendencia semanal y desglose por zona   │ Pendiente    │   0 │
+│ Tab Ventas con embudo y ticket promedio                │ Pendiente    │   0 │
+│ Tab Precios con min/max/prom por zona                  │ Pendiente    │   0 │
+│ Tab Pedidos y Entregas con cruce por dirección         │ Pendiente    │   0 │
+│ Capacitación del equipo en uso del Form de Entregas    │ Pendiente    │   0 │
+└────────────────────────────────────────────────────────┴──────────────┴─────┘
+
+
+================================================================================
+10. PRÓXIMOS PASOS
+================================================================================
+
+INMEDIATO:
+  1. Ejecutar Sesión 6 con Claude Code: rediseño del dashboard
+     (barra ejecutiva + reorganización de tabs + Tab Precios)
+  2. Ejecutar Sesión 7 con Claude Code: Tab Equipo + Tab Ventas
+  3. Ejecutar Sesión 8 con Claude Code: Tab Pedidos y Entregas
+
+CORTO PLAZO:
+  4. Capacitar a los vendedores en el uso del formulario de Entregas
+  5. Primera reunión de gestión usando el dashboard rediseñado
+
+MEDIANO PLAZO:
+  6. Agregar alertas automáticas (ej: si un PDV tiene stock bajo)
+  7. Agregar historial de visitas por PDV (CRM básico)
+  8. Exportación de reportes desde el dashboard
+
+
+================================================================================
+11. NOTAS PARA CLAUDE CODE (CONTEXTO TÉCNICO DETALLADO)
+================================================================================
+
+TEXTOS EXACTOS DEL SHEET (sensibles a mayúsculas y espacios):
+  Tipo de Visita:
+    "Nuevo PDV"
+    "Toma de Pedido / Relevamiento"
+    "Entrega"
+  Resultado de pedido:
+    "Se tomó Pedido"
+    "No se tomó Pedido"
+  ¿Compró? (col I):
+    "Sí" (con tilde)
+    "No"
+  ¿Se entregó en el momento? (nueva columna, Ruta 1):
+    "Sí"
+    "No"
+
+LÓGICA DE SEMANA:
+  La semana empieza el lunes. El filtro de semana actual debe calcular el
+  lunes de la semana en curso como fecha de inicio.
+  Fórmula JavaScript:
+    const getStartOfCurrentWeek = () => {
+      const today = new Date();
+      const day = today.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(today.setDate(diff));
+    };
+
+LÓGICA DE DELTA SEMANA ANTERIOR:
+  Para cada métrica, calcular el valor de la semana anterior (lunes-domingo
+  de la semana previa) y compararlo con la semana actual.
+  Mostrar como: "+4" (verde) o "-2" (rojo) con flecha ↑↓.
+  Proteger contra semana anterior con 0 registros (mostrar "—" en lugar de ∞%).
+
+CÁLCULO DE TASA DE CONVERSIÓN:
+  Siempre proteger contra división por cero:
+    const conversionRate = (sold, total) =>
+      total === 0 ? null : (sold / total) * 100;
+
+LÓGICA DE CRUCE PEDIDO → ENTREGA:
+  Función normalizeAddress(str):
+    - Convertir a minúsculas
+    - Eliminar tildes (á→a, é→e, í→i, ó→o, ú→u)
+    - Eliminar puntuación (comas, puntos, guiones)
+    - Colapsar espacios múltiples en uno
+    - Trim
+  Un pedido matchea con una entrega si:
+    normalizeAddress(pedido.direccion) === normalizeAddress(entrega.direccion)
+  Si no hay match exacto → el pedido queda como "pendiente sin confirmar"
+  y se muestra en la tabla con un badge amarillo de advertencia.
+
+REGISTROS A IGNORAR:
+  Las filas 2-6 de la hoja Respuestas (fechas 24/02 y 25/02/2026) son registros
+  de prueba. Al filtrar por fecha >= 01/03/2026 quedan automáticamente excluidos.
+
+CONSTANTES DEL NEGOCIO:
+  // vendors.js
+  export const VENDORS = ['Javier', 'Karen', 'Daniel'];
+
+  // products.js
+  export const PRODUCTS = [
+    'Val Sud Red Blend Magnum',
+    'Val Sud Red Blend Classic',
+    'Val Sud Gran Malbec',
+    'Val Sud Bonarda Malbec',
+    'Val Sud Bonarda Syrah',
+    'El Halcón Tinto Clásico',
+    'El Halcón Tinto Patero',
+  ];
+
+  export const COMPETITORS = [
+    'Viñas de Balbo',
+    'Hormiga Negra Malbec',
+    'Prófugo Malbec',
+  ];
+
+  // zones.js
+  export const ZONES = ['Zona A1', 'Zona B1'];
+
+GIDs DE HOJAS DEL SHEET:
+  Respuestas de formulario 1: 401974834
+  Nuevos PDV: 1105327068
+  KPI: 2092043606
+  Pedidos Tomados: (verificar haciendo click en la pestaña y leyendo la URL)
+  Inventario PDV: (verificar haciendo click en la pestaña y leyendo la URL)
+
+ESTADO DEL CÓDIGO AL INICIO DE SESIÓN 6:
+  El proyecto está en producción en https://dipve.vercel.app/
+  Repositorio: https://github.com/Saferian2020/dipve
+  Rama activa: main
+  Las sesiones 6, 7 y 8 modifican el código existente — no crean un proyecto nuevo.
+  Siempre leer PROGRESO.md antes de tocar cualquier archivo.
+
+LIMITACIÓN CONOCIDA DEL web_fetch DE CLAUDE:
+  El web_fetch de Claude no puede leer el Sheet porque Google Sheets requiere
+  JavaScript para renderizar. La única forma de leer el contenido completo es
+  usando Chrome MCP (Claude in Chrome) o la URL de exportación CSV.
+
+
+================================================================================
+12. ENTORNO DE DESARROLLO
+================================================================================
+
+┌────────────────────┬───────────────────────────────────────────────────────┐
+│ Ítem               │ Detalle                                               │
+├────────────────────┼───────────────────────────────────────────────────────┤
+│ Computadora        │ MacBook Pro M1 Pro, macOS                             │
+│ Node.js            │ v16.9.1 instalado                                     │
+│ GitHub             │ https://github.com/Saferian2020/dipve                 │
+│ Vercel             │ https://dipve.vercel.app/ (plan Hobby, conectado)     │
+│ Google API Key     │ No se usa. Fuente: CSV público sin autenticación      │
+│ IDE recomendado    │ VS Code                                               │
+└────────────────────┴───────────────────────────────────────────────────────┘
+
+COMANDOS DE DESARROLLO:
+  npm install          → Instalar dependencias
+  npm run dev          → Levantar servidor local (http://localhost:5173)
+  npm run build        → Compilar para producción
+  npm run preview      → Vista previa del build de producción
+  npm run test         → Correr tests
+  npm run lint         → Verificar errores de lint
+
+DEPLOY (flujo para actualizaciones):
+  git add .
+  git commit -m "descripción del cambio"
+  git push origin main
+  → Vercel detecta el push y redeploya automáticamente en ~1 minuto
+
+VARIABLES DE ENTORNO:
+  Archivo .env en la raíz del proyecto (NO commitear a GitHub):
+    VITE_SHEET_ID=1W7xhwB_zBF3sxOiCAN_Ub7KYNPPCD6pMzZ3AOmfNf4A
+
+
+================================================================================
+13. ESTÁNDARES DE CÓDIGO Y ESTRUCTURA DE CARPETAS
+================================================================================
+
+ESTÁNDARES DE CÓDIGO:
+  - Todo el código en inglés (variables, funciones, comentarios técnicos)
+  - Las cadenas de texto visibles al usuario van en español (Argentina)
+  - camelCase para variables y funciones
+  - PascalCase para componentes React
+  - SCREAMING_SNAKE_CASE para constantes
+  - Un componente por archivo, nombre del archivo = nombre del componente
+  - Functional components con hooks (no class components)
+  - Toda la lógica de transformación de datos va en /src/utils/ o /src/hooks/
+  - Los componentes solo reciben datos ya procesados, nunca hacen fetch
+  - Usar useMemo para cálculos pesados
+  - Siempre manejar estados loading y error
+  - Mostrar "Sin datos para el período seleccionado" cuando no hay registros
+
+ESTRUCTURA DE CARPETAS:
+  dipve/
+  ├── public/
+  │   └── favicon.ico
+  ├── src/
+  │   ├── components/
+  │   │   ├── layout/
+  │   │   │   ├── Header.jsx              (título + PeriodFilter sticky)
+  │   │   │   └── ExecutiveSummary.jsx    (nuevo: barra KPIs ejecutiva sticky)
+  │   │   ├── filters/
+  │   │   │   └── PeriodFilter.jsx        (selector semana / mes / rango custom)
+  │   │   ├── panels/
+  │   │   │   ├── EquipoPanel.jsx         (Tab 1 — tendencia + comparativa vendedores)
+  │   │   │   ├── VentasPanel.jsx         (Tab 2 — embudo + razones + productos)
+  │   │   │   ├── PreciosPanel.jsx        (Tab 3 — precios propios y competencia)
+  │   │   │   ├── PedidosEntregasPanel.jsx (Tab 4 — pedidos + cruce entregas)
+  │   │   │   ├── NuevosPDVPanel.jsx      (legacy, integrado en VentasPanel)
+  │   │   │   ├── PedidosPanel.jsx        (legacy, integrado en PedidosEntregasPanel)
+  │   │   │   ├── InventarioPanel.jsx     (legacy, integrado en PedidosEntregasPanel)
+  │   │   │   ├── EntregasPanel.jsx       (legacy, integrado en PedidosEntregasPanel)
+  │   │   │   └── VendedoresPanel.jsx     (legacy, integrado en EquipoPanel)
+  │   │   └── ui/
+  │   │       ├── KPICard.jsx
+  │   │       ├── DataTable.jsx
+  │   │       ├── DeltaBadge.jsx          (nuevo: muestra ↑↓ con color)
+  │   │       └── LoadingSpinner.jsx
+  │   ├── hooks/
+  │   │   ├── useSheetData.js
+  │   │   └── usePeriodFilter.js
+  │   ├── utils/
+  │   │   ├── sheetParser.js
+  │   │   ├── dateUtils.js
+  │   │   ├── kpiCalculator.js
+  │   │   ├── filterUtils.js
+  │   │   └── matchUtils.js               (nuevo: lógica de cruce pedido→entrega)
+  │   ├── constants/
+  │   │   ├── vendors.js
+  │   │   ├── products.js
+  │   │   ├── zones.js
+  │   │   └── sheetConfig.js
+  │   ├── App.jsx
+  │   ├── main.jsx
+  │   └── index.css
+  ├── tests/
+  │   └── utils/
+  │       ├── sheetParser.test.js
+  │       ├── dateUtils.test.js
+  │       ├── kpiCalculator.test.js
+  │       └── matchUtils.test.js          (nuevo)
+  ├── .env                  (NO commitear)
+  ├── .env.example
+  ├── .gitignore
+  ├── DIPVE_informe.txt     (contexto del proyecto para Claude Code)
+  ├── PROGRESO.md           (se actualiza en cada sesión)
+  ├── index.html
+  ├── package.json
+  ├── tailwind.config.js
+  └── vite.config.js
+
+
+================================================================================
+14. SEGURIDAD
+================================================================================
+
+  - NUNCA commitear el archivo .env al repositorio (va en .gitignore)
+  - El dashboard es solo lectura: NUNCA escribe en el Sheet
+  - No almacenar datos del Sheet en localStorage ni en servidores externos
+  - Los datos viven solo en la RAM del navegador durante la sesión
+  - Vercel provee HTTPS automáticamente en todos los deploys
+
+
+================================================================================
+15. PROMPTS PARA CLAUDE CODE POR SESIÓN
+================================================================================
+
+PLAN DE SESIONES:
+┌─────────┬────────────────────────────────────────┬──────────────────────────────────────┐
+│ Sesión  │ Objetivo                               │ Resultado al terminar                │
+├─────────┼────────────────────────────────────────┼──────────────────────────────────────┤
+│ 1       │ Setup + Datos + Panel Vendedores       │ App en localhost con datos            │
+│ 2       │ Filtro período + Panel Nuevos PDV      │ Filtro semana/mes funcionando         │
+│ 3       │ Panel Pedidos + Panel Inventario       │ Paneles 2 y 3 completos              │
+│ 4       │ Panel Precios + Entregas + diseño      │ Dashboard v1 completo                │
+│ 5       │ Deploy en Vercel                       │ URL pública accesible                │
+│ 6       │ Rediseño + barra ejecutiva + Tab       │ Nueva estructura visual con precios  │
+│         │ Precios (min/max/prom por zona)        │ correctamente implementados          │
+│ 7       │ Tab Equipo (tendencia semanal) +       │ KPIs de equipo y ventas con delta    │
+│         │ Tab Ventas (embudo + ticket prom.)     │ vs semana anterior funcionando       │
+│ 8       │ Tab Pedidos y Entregas (cruce por      │ Seguimiento completo pedido→entrega  │
+│         │ dirección + fechas posibles entrega)   │ con campos nuevos del Form           │
+└─────────┴────────────────────────────────────────┴──────────────────────────────────────┘
+
+INSTRUCCIONES DE USO:
+  1. Colocá el archivo DIPVE_informe.txt en la carpeta raíz del proyecto dipve/
+  2. Abrí Claude Code desde esa carpeta ejecutando "claude" en la terminal
+  3. Copiá el prompt de la sesión correspondiente y pegalo como primer mensaje
+  4. Seguí las instrucciones paso a paso
+  5. Al terminar cada sesión, Claude Code crea/actualiza PROGRESO.md
+     En la siguiente sesión, incluí PROGRESO.md junto a DIPVE_informe.txt
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 1 — Setup + Datos + Panel Vendedores
+--------------------------------------------------------------------------------
+
+[COMPLETADO — ver PROGRESO.md]
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 2 — Filtro de Período + Panel Nuevos PDV
+--------------------------------------------------------------------------------
+
+[COMPLETADO — ver PROGRESO.md]
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 3 — Panel Pedidos + Panel Inventario
+--------------------------------------------------------------------------------
+
+[COMPLETADO — ver PROGRESO.md]
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 4 — Panel Precios + Panel Entregas + Diseño Final
+--------------------------------------------------------------------------------
+
+[COMPLETADO — ver PROGRESO.md]
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 5 — Deploy en Vercel
+--------------------------------------------------------------------------------
+
+[COMPLETADO — ver PROGRESO.md. URL: https://dipve.vercel.app/]
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 6 — Rediseño visual + Barra ejecutiva + Tab Precios
+--------------------------------------------------------------------------------
+
+Lee DIPVE_informe.txt y PROGRESO.md. Leelos completos antes de tocar
+cualquier archivo. El proyecto ya está en producción en
+https://dipve.vercel.app/ — esta sesión modifica el código existente,
+no crea un proyecto nuevo.
+
+CONTEXTO IMPORTANTE:
+El dashboard v1 tiene 5 tabs (Vendedores, Nuevos PDV, Pedidos, Precios,
+Entregas) que mezclan granularidad y carecen de jerarquía visual. El
+objetivo de las sesiones 6, 7 y 8 es rediseñarlo con una estructura
+más clara orientada a la reunión semanal de gestión.
+
+OBJETIVO DE ESTA SESIÓN:
+1. Agregar barra de resumen ejecutivo sticky
+2. Reorganizar los tabs a la nueva estructura de 4
+3. Reconstruir el Tab Precios con min/máx/promedio por zona
+4. Verificar y corregir los índices de columna de precios en el Sheet
+
+TAREAS EN ORDEN ESTRICTO:
+
+1. VERIFICACIÓN DE ÍNDICES DE PRECIOS:
+   Antes de escribir código, fetcheá el CSV de la hoja "Respuestas de
+   formulario 1" usando la URL de exportación CSV pública del DIPVE_informe.txt
+   y leé la fila 1 (headers). Identificá exactamente en qué índices (0-based)
+   están las columnas de precios de Val Sud y competidores.
+   Los valores en PROGRESO.md (precioCompetidores: [53,54,55] y
+   precioValSud: [57,58,59]) son teóricos y probablemente incorrectos.
+   Actualizá sheetConfig.js con los índices reales antes de continuar.
+
+2. BARRA DE RESUMEN EJECUTIVO:
+   Crear /src/components/layout/ExecutiveSummary.jsx:
+   - 4 KPI cards en una fila horizontal (scroll en mobile):
+     · "Visitas esta semana" — total de visitas en el período activo
+     · "Conversión" — tasa de conversión de Nuevos PDV en el período
+     · "Pedidos tomados" — cantidad de pedidos en el período
+     · "vs semana anterior" — delta de visitas (+N / -N con flecha ↑↓)
+   - Fondo blanco, borde inferior sutil, sticky debajo del Header
+   - Los valores se calculan siempre sobre el período activo del filtro
+   - Crear /src/components/ui/DeltaBadge.jsx: muestra "+4 ↑" en verde
+     o "-2 ↓" en rojo según el signo del delta. Si semana anterior = 0,
+     mostrar "—" sin color.
+
+3. NUEVA ESTRUCTURA DE TABS (4 tabs):
+   Reemplazar los 5 tabs actuales por:
+     Tab 1: "Equipo"             (por ahora: placeholder vacío con mensaje)
+     Tab 2: "Ventas"             (por ahora: placeholder vacío con mensaje)
+     Tab 3: "Precios"            (construir en esta sesión — ver tarea 4)
+     Tab 4: "Pedidos / Entregas" (por ahora: placeholder vacío con mensaje)
+   Los paneles legacy (NuevosPDVPanel, VendedoresPanel, PedidosPanel,
+   InventarioPanel, EntregasPanel) NO se eliminan en esta sesión — quedan
+   como archivos pero sin renderizarse. Se migran en sesiones 7 y 8.
+
+4. TAB PRECIOS — RECONSTRUIR PreciosPanel.jsx:
+   Reemplazar la tabla simple actual por dos tablas separadas:
+
+   TABLA A — Nuestros Vinos (Val Sud + El Halcón):
+   Columnas: Producto | A1 Prom | A1 Mín | A1 Máx | B1 Prom | B1 Mín | B1 Máx | Relevamientos
+
+   TABLA B — Competencia:
+   Misma estructura, para Viñas de Balbo / Hormiga Negra / Prófugo Malbec.
+
+   Lógica de cálculo (en kpiCalculator.js):
+   - Filtrar registros del período activo
+   - Por cada producto y zona: recolectar todos los precios no-nulos
+   - Calcular promedio (Math.round), mínimo y máximo
+   - Si hay 0 relevamientos para un producto/zona: mostrar "—" en las 3 columnas
+   - Columna "Relevamientos" = total de registros con al menos un precio informado
+   - Mostrar los precios en formato "$X" (pesos argentinos, sin decimales)
+   - Si no hay ningún relevamiento en el período: mostrar mensaje
+     "Sin relevamientos de precios en el período seleccionado"
+
+5. ACTUALIZAR App.jsx con la nueva estructura:
+   - Header (sticky, z-30) → ExecutiveSummary (sticky, z-20) → Tabs → Panel activo
+   - El filtro de período sigue en el Header como antes
+   - Tab activo por defecto = "Precios" para facilitar la verificación visual
+
+6. VERIFICAR QUE npm run build PASA SIN ERRORES antes de hacer push.
+   Luego: git add . && git commit -m "sesion 6: rediseno + tab precios"
+   && git push origin main
+
+REGLAS:
+- Cada vez que debas ejecutar algo en la terminal, pausá y mostrámelo
+  con el comando exacto. Esperá mi confirmación antes de continuar.
+- Sin explicaciones largas de código, solo el trabajo.
+- Si hay un error, decime exactamente qué hacer para resolverlo.
+- Al terminar, actualizar PROGRESO.md con: archivos modificados,
+  índices de precios verificados, qué funciona, objetivo de Sesión 7.
+
+NO hacer en esta sesión: Tab Equipo, Tab Ventas, Tab Pedidos/Entregas,
+lógica de cruce de entregas, tests.
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 7 — Tab Equipo + Tab Ventas
+--------------------------------------------------------------------------------
+
+Lee DIPVE.md y PROGRESO.md. Leelos completos antes de tocar
+cualquier archivo.
+
+OBJETIVO DE ESTA SESIÓN:
+Construir el Tab Equipo (comparativa de vendedores con tendencia semanal)
+y el Tab Ventas (embudo de conversión, razones de rechazo, productos).
+
+TAREAS EN ORDEN ESTRICTO:
+
+1. EXTENDER kpiCalculator.js con calcWeeklyTrend(data, semanas):
+   - Recibe el array de datos completo y un número de semanas hacia atrás (4)
+   - Retorna un array de { semana, label, visitas, conversion, pedidos }
+     donde semana es el lunes de cada semana y label es "Sem N" o la fecha
+   - Proteger contra semanas sin datos (retornar 0, no null)
+   - Usar esta función también para calcular el delta de la barra ejecutiva
+
+2. EXTENDER kpiCalculator.js con calcVendorComparison(data, desde, hasta):
+   - Por cada vendedor: { nombre, visitas, nuevosPDV, compraron,
+     tasaConversion, pedidos, ticketPromedio }
+   - ticketPromedio = total cajas pedidas / cantidad de pedidos tomados
+     (proteger contra 0 pedidos — mostrar "—" si no hay pedidos)
+   - También retornar el total del equipo como fila de resumen
+
+3. CONSTRUIR /src/components/panels/EquipoPanel.jsx:
+   a) Tabla comparativa de vendedores:
+      - Columnas: Vendedor | Visitas | Nuevos PDV | Compraron | Conversión |
+        Pedidos | Ticket Prom.
+      - Mini-barra de progreso horizontal en la columna Visitas
+        (ancho proporcional al máximo del equipo en el período)
+      - Fila de totales al final con fondo distinto
+      - Colores semafóricos en Conversión: verde ≥15%, amarillo ≥8%, rojo <8%
+   b) Gráfico de tendencia semanal (Recharts LineChart):
+      - Eje X: últimas 4 semanas (labels "Sem 1", "Sem 2", etc.)
+      - Eje Y: número de visitas
+      - Una línea por vendedor con color distinto
+        (Javier: #5C1A1A, Karen: #E07B54, Daniel: #4A90D9)
+      - Leyenda debajo del gráfico
+      - Título: "Actividad últimas 4 semanas"
+   c) Desglose de conversión por tipo de PDV (si hay datos):
+      - Tabla: Tipo PDV | Visitados | Compraron | Tasa
+      - Ordenado por tasa de conversión descendente
+      - Mensaje "Sin datos de tipo de PDV en el período" si no hay datos
+
+4. EXTENDER kpiCalculator.js con calcVentasStats(data, desde, hasta):
+   - embudo: { visitados, interesados, compraron }
+     NOTA: "interesados" = PDV que respondieron "Reconfirmar" en la razón
+     de no compra. Es la señal de interés más clara separada del rechazo
+     categórico ("No le interesa", "No vende Alcohol", etc.)
+   - razonesRechazo: array de { razon, cantidad } ordenado por cantidad desc
+   - rankingProductos: array de { producto, cajas, zona } de pedidos tomados
+   - ticketPromedio: cajas promedio por pedido tomado (proteger contra 0)
+
+5. CONSTRUIR /src/components/panels/VentasPanel.jsx:
+   a) Embudo de conversión visual:
+      - 3 bloques apilados con anchos proporcionales al porcentaje:
+        Visitados (100%) → Interesados (X%) → Compraron (Y%)
+      - Porcentaje de cada etapa visible dentro del bloque
+      - Colores: gris claro → naranja → verde vino (#5C1A1A)
+   b) Gráfico de barras horizontal (Recharts BarChart): razones de rechazo
+      - Ordenado de mayor a menor
+      - La barra de "Reconfirmar" en naranja (oportunidad, no rechazo final)
+      - Las demás en rojo oscuro
+   c) Ranking de productos (tabla):
+      - Columnas: Producto | Cajas pedidas | Zona predominante
+      - Ordenado por cajas desc
+      - Mensaje "Sin pedidos en el período" si no hay datos
+   d) KPI card: Ticket promedio (cajas por pedido)
+
+6. REEMPLAZAR los placeholders de Tab Equipo y Tab Ventas en App.jsx
+   con los nuevos paneles.
+
+7. ACTUALIZAR la barra ejecutiva ExecutiveSummary.jsx para usar
+   calcWeeklyTrend() en el cálculo del delta vs semana anterior
+   (reemplazar cualquier cálculo provisional de la Sesión 6).
+
+8. VERIFICAR que npm run build pasa sin errores.
+   git add . && git commit -m "sesion 7: tab equipo + tab ventas"
+   && git push origin main
+
+REGLAS: igual que Sesión 6.
+Al terminar, actualizar PROGRESO.md.
+
+NO hacer en esta sesión: Tab Pedidos/Entregas, lógica de cruce,
+campos nuevos del Form, tests.
+
+--------------------------------------------------------------------------------
+PROMPT SESIÓN 8 — Tab Pedidos y Entregas
+--------------------------------------------------------------------------------
+
+Lee DIPVE_informe.txt y PROGRESO.md. Leelos completos antes de tocar
+cualquier archivo.
+
+CONTEXTO IMPORTANTE:
+El Google Form fue actualizado el 10/04/2026 con dos campos nuevos:
+  1. "¿Se entregó el producto en el momento?" (Sí/No) en Ruta 1 (Nuevo PDV,
+     cuando Compró = Sí). Si es No, se solicita Fecha posible de entrega.
+  2. "Fecha posible de entrega" en Ruta 2 (Toma de Pedido, cuando Se tomó Pedido).
+Google Forms habrá agregado estas columnas al final del Sheet cuando se
+recibió la primera respuesta con esos campos. Los índices exactos (0-based)
+deben verificarse leyendo los headers del CSV antes de continuar.
+
+La clave de cruce entre pedidos y entregas es la DIRECCIÓN DE TEXTO (no el
+link de Maps). Ver lógica completa en Sección 11 de este documento.
+
+OBJETIVO DE ESTA SESIÓN:
+Construir el Tab Pedidos y Entregas con seguimiento del ciclo
+pedido → entrega usando los campos nuevos del Form.
+
+TAREAS EN ORDEN ESTRICTO:
+
+1. VERIFICAR ÍNDICES DE COLUMNAS NUEVAS:
+   Fetcheá el CSV de "Respuestas de formulario 1" y leé la fila de headers.
+   Identificá los índices (0-based) de:
+   - "¿Se entregó el producto en el momento?" (Ruta 1)
+   - "Fecha posible de entrega" en Ruta 1
+   - "Fecha posible de entrega" en Ruta 2
+   Si los campos aún no aparecen en el CSV (no hubo respuestas desde el
+   10/04/2026), agregar los índices como null en sheetConfig.js y manejar
+   el caso de columna ausente en el parser sin romper el resto de la app.
+   Actualizá sheetConfig.js con los índices reales o null según corresponda.
+
+2. EXTENDER sheetParser.js para parsear por fila:
+   - entregadoEnMomento: Boolean | null (columna nueva Ruta 1)
+   - fechaPosibleEntregaNuevoPDV: Date | null (columna nueva Ruta 1)
+   - fechaPosibleEntregaPedido: Date | null (columna nueva Ruta 2)
+   - direccion: String (normalizada con normalizeAddress — ver punto 3)
+
+3. CREAR /src/utils/matchUtils.js con:
+   - normalizeAddress(str): String → String
+     · Minúsculas, sin tildes (á→a, é→e, í→i, ó→o, ú→u, ü→u)
+     · Sin puntuación (comas, puntos, guiones, paréntesis)
+     · Espacios múltiples colapsados en uno
+     · Trim
+   - matchPedidoEntrega(pedidos, entregas): Array
+     · Recibe array de registros con tipoVisita="Toma de Pedido / Relevamiento"
+       y resultado="Se tomó Pedido", y array de registros con
+       tipoVisita="Entrega"
+     · También incluye registros de Ruta 1 donde compro="Sí" y
+       entregadoEnMomento=false o null (estos también necesitan match)
+     · Retorna array de { pedido, entrega | null, matchExacto: Boolean }
+     · Match exacto: normalizeAddress(pedido.direccion) ===
+       normalizeAddress(entrega.direccion)
+     · Un pedido de Ruta 1 con entregadoEnMomento=true se considera
+       automáticamente entregado — no necesita match con Ruta 3
+
+4. EXTENDER kpiCalculator.js con calcPedidosEntregasStats(data, desde, hasta):
+   - pedidosTotales: total de pedidos tomados en el período (Ruta 1 + Ruta 2)
+   - entregadosEnMomento: pedidos de Ruta 1 con entregadoEnMomento=true
+   - pendientesConFecha: pedidos con fecha posible de entrega futura
+   - pendientesSinFecha: pedidos sin fecha posible de entrega registrada
+   - entregasConfirmadas: pedidos cruzados con un registro de Entrega (Ruta 3)
+   - sinConfirmar: pedidos sin match exacto en Entrega
+   - tasaCierre: entregasConfirmadas / pedidosTotales (proteger contra 0)
+
+5. CONSTRUIR /src/components/panels/PedidosEntregasPanel.jsx:
+   a) 4 KPI cards en una fila:
+      - Total pedidos en el período
+      - Entregados en el momento
+      - Pendientes de entrega (con fecha registrada)
+      - Tasa de cierre (pedidos con entrega confirmada %)
+   b) Tabla "Pedidos del período":
+      Columnas: Fecha | Vendedor | PDV | Dirección | Productos | Cajas |
+                Fecha posible entrega | Estado
+      Estado posible (con badge de color):
+        - "Entregado en el momento" (badge verde) — Ruta 1, entregadoEnMomento=true
+        - "Entregado ✓" (badge verde) — tiene match con registro de Entrega (Ruta 3)
+        - "Pendiente — [fecha]" (badge amarillo) — tiene fecha posible, sin entrega
+        - "Sin fecha registrada" (badge rojo) — sin fecha ni entrega confirmada
+        - "Sin confirmar ?" (badge gris) — match no encontrado automáticamente
+   c) Tabla "Entregas registradas":
+      Columnas: Fecha | Vendedor | Dirección | Pedido origen | Estado entrega |
+                Cobrado | Método cobro
+      Si no hay entregas en el período: "Sin entregas registradas en el período"
+   d) Nota visible en pantalla (siempre visible si hay pedidos sin confirmar):
+      "Los pedidos marcados con ? no pudieron relacionarse automáticamente
+       con un registro de entrega por diferencias en la dirección ingresada.
+       Revisarlos manualmente."
+
+6. REEMPLAZAR el placeholder de Tab Pedidos/Entregas en App.jsx con
+   el nuevo panel.
+
+7. CREAR /tests/utils/matchUtils.test.js con al menos 4 casos:
+   - Dirección idéntica → match exacto (true)
+   - Dirección con diferente capitalización → match exacto (true)
+   - Dirección con tildes vs sin tildes → match exacto (true)
+   - Direcciones diferentes → sin match (false)
+
+8. VERIFICAR que npm run build y npm run test pasan sin errores.
+   git add . && git commit -m "sesion 8: tab pedidos y entregas"
+   && git push origin main
+
+REGLAS: igual que Sesión 6.
+Al terminar, actualizar PROGRESO.md con el estado completo del proyecto.
+
+--------------------------------------------------------------------------------
+PROMPT DE RETOMADA — Para cualquier sesión interrumpida
+--------------------------------------------------------------------------------
+
+Lee DIPVE_informe.txt y PROGRESO.md. Entendé el estado actual completo
+del proyecto antes de hacer cualquier cosa.
+
+Quiero retomar el trabajo donde quedamos. Basándote en PROGRESO.md,
+decime:
+1. ¿Qué está completado y funcionando?
+2. ¿En qué punto exacto quedamos?
+3. ¿Cuál es el próximo paso concreto?
+
+Esperá mi confirmación antes de arrancar.
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
+Versión 3.0 | 10 de abril de 2026
+Proyecto DIPVE — Distribución de Vinos
+================================================================================
