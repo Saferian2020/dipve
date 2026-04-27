@@ -8,6 +8,16 @@ export const PRODUCTS = [
   'El Halcón Tinto Patero',
 ];
 
+export const INVENTORY_PRODUCTS = [
+  'Val Sud Red Blend Classic',
+  'Val Sud Red Blend Magnum',
+  'Val Sud Gran Malbec',
+  'Val Sud Bonarda Malbec',
+  'Val Sud Bonarda Syrah',
+  'El Halcón Tinto Clásico',
+  'El Halcón Tinto Patero',
+];
+
 export const COMPETITORS = [
   'Viñas de Balbo',
   'Hormiga Negra Malbec',

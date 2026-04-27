@@ -1,5 +1,5 @@
 import { VENDORS } from '../constants/vendors';
-import { PRODUCTS, COMPETITORS } from '../constants/products';
+import { PRODUCTS, INVENTORY_PRODUCTS, COMPETITORS } from '../constants/products';
 import { VISIT_TYPES, RESULTS, COMPRO_SI, INVENTORY_STATES } from '../constants/sheetConfig';
 import { isInRange } from './dateUtils';
 
@@ -127,8 +127,8 @@ export function calcInventarioStats(data, fechaDesde, fechaHasta) {
 
   if (relevamientos.length === 0) return empty;
 
-  // For each product (index 0-6 = PRODUCTS[0..6]), tally inventory states
-  const rows = PRODUCTS.map((nombre, idx) => {
+  // For each inventory product (index 0-6 = CK..CQ), tally inventory states
+  const rows = INVENTORY_PRODUCTS.map((nombre, idx) => {
     const counts = {
       [INVENTORY_STATES.critico]: 0,
       [INVENTORY_STATES.medio]: 0,
