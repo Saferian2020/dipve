@@ -25,6 +25,16 @@ function parseDate(raw) {
   return isNaN(date.getTime()) ? null : date;
 }
 
+function parseProducts(row, productCols, quantityCols) {
+  return productCols
+    .map((colIdx, i) => {
+      const nombre = (row[colIdx] || '').trim();
+      const cajas = parseInt(row[quantityCols[i]] || '0', 10) || 0;
+      return nombre ? { nombre, cajas } : null;
+    })
+    .filter(Boolean);
+}
+
 export function parseSheetCSV(csvRaw) {
   const result = Papa.parse(csvRaw, {
     header: false,
@@ -39,14 +49,30 @@ export function parseSheetCSV(csvRaw) {
     const fecha = parseDate(row[COLS.fecha]);
     if (!fecha || fecha < CUTOFF_DATE) return acc;
 
-    // Parse productos pedidos (up to 5 slots)
-    const productos = COLS.productoPedido
-      .map((colIdx, i) => {
-        const nombre = (row[colIdx] || '').trim();
-        const cajas = parseInt(row[COLS.cantidadPedida[i]] || '0', 10) || 0;
-        return nombre ? { nombre, cajas } : null;
-      })
-      .filter(Boolean);
+    const productosNuevoPDV = parseProducts(
+      row,
+      COLS.productoNuevoPDV,
+      COLS.cantidadNuevoPDV
+    );
+    const productos = parseProducts(row, COLS.productoPedido, COLS.cantidadPedida);
+
+    const tipoVisita = (row[COLS.tipoVisita] || '').trim();
+    const nombrePDV =
+      tipoVisita === 'Nuevo PDV'
+        ? (row[COLS.nombreNuevoPDV] || '').trim()
+        : tipoVisita === 'Toma de Pedido / Relevamiento'
+        ? (row[COLS.nombrePedido] || '').trim()
+        : tipoVisita === 'Entrega'
+        ? (row[COLS.nombreEntrega] || '').trim()
+        : '';
+    const direccion =
+      tipoVisita === 'Nuevo PDV'
+        ? (row[COLS.direccionNuevoPDV] || '').trim()
+        : tipoVisita === 'Toma de Pedido / Relevamiento'
+        ? (row[COLS.direccionPedido] || '').trim()
+        : tipoVisita === 'Entrega'
+        ? (row[COLS.direccionEntrega] || '').trim()
+        : '';
 
     // Parse inventario PDV (7 slots, one per product in catalog order)
     const VALID_INV = Object.values(INVENTORY_STATES);
@@ -69,15 +95,18 @@ export function parseSheetCSV(csvRaw) {
     acc.push({
       fecha,
       vendedor: (row[COLS.vendedor] || '').trim(),
-      tipoVisita: (row[COLS.tipoVisita] || '').trim(),
+      tipoVisita,
       zona: (row[COLS.zona] || '').trim(),
       compro: (row[COLS.compro] || '').trim(),
       tipoPDV: (row[COLS.tipoPDV] || '').trim(),
+      nombrePDV,
+      direccion,
       razonNoCompra: (row[COLS.razonNoCompra] || '').trim(),
       resultado: (row[COLS.resultado] || '').trim(),
       estadoEntrega: (row[COLS.estadoEntrega] || '').trim(),
       seCobro: (row[COLS.seCobro] || '').trim(),
       metodoCobro: (row[COLS.metodoCobro] || '').trim(),
+      productosNuevoPDV,
       productos,
       inventario,
       precioCompetidores,

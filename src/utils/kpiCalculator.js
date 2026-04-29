@@ -1,5 +1,6 @@
 import { VENDORS } from '../constants/vendors';
-import { PRODUCTS, INVENTORY_PRODUCTS, COMPETITORS } from '../constants/products';
+import { INVENTORY_PRODUCTS, COMPETITORS } from '../constants/products';
+import { PRODUCT_PRICES_BY_NAME } from '../constants/productPrices';
 import { VISIT_TYPES, RESULTS, COMPRO_SI, INVENTORY_STATES } from '../constants/sheetConfig';
 import { isInRange } from './dateUtils';
 
@@ -287,6 +288,163 @@ export function calcExecutiveSummary(data, fechaDesde, fechaHasta) {
 function safeRate(numerator, denominator) {
   if (!denominator || denominator === 0) return null;
   return Math.round((numerator / denominator) * 100);
+}
+
+function safeRateDecimal(numerator, denominator) {
+  if (!denominator || denominator === 0) return null;
+  return Math.round((numerator / denominator) * 1000) / 10;
+}
+
+function countInclusiveDays(desde, hasta) {
+  if (!desde || !hasta) return 0;
+  const start = new Date(desde);
+  const end = new Date(hasta);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function isOperationalVisit(row) {
+  return (
+    row.tipoVisita === VISIT_TYPES.nuevoPDV ||
+    row.tipoVisita === VISIT_TYPES.pedido ||
+    row.tipoVisita === VISIT_TYPES.entrega
+  );
+}
+
+function isPurchaseVisit(row) {
+  return (
+    (row.tipoVisita === VISIT_TYPES.nuevoPDV && row.compro === COMPRO_SI) ||
+    (row.tipoVisita === VISIT_TYPES.pedido && row.resultado === RESULTS.pedidoTomado)
+  );
+}
+
+function saleProducts(row) {
+  if (row.tipoVisita === VISIT_TYPES.nuevoPDV) return row.productosNuevoPDV || [];
+  if (row.tipoVisita === VISIT_TYPES.pedido) return row.productos || [];
+  return [];
+}
+
+function calcBoxes(row) {
+  return saleProducts(row).reduce((sum, product) => sum + (product.cajas || 0), 0);
+}
+
+function calcSaleTotal(row, priceMap) {
+  return saleProducts(row).reduce((sum, product) => {
+    const price = priceMap[product.nombre] || 0;
+    return sum + (product.cajas || 0) * price;
+  }, 0);
+}
+
+function getRowsInPeriod(data, desde, hasta, vendedor = 'Todos') {
+  return (data || []).filter(
+    (row) =>
+      isOperationalVisit(row) &&
+      isInRange(row.fecha, desde, hasta) &&
+      (vendedor === 'Todos' || row.vendedor === vendedor)
+  );
+}
+
+function emptyVendedoresStats(days, vendorCount = 1) {
+  const objetivo = 25 * days * vendorCount;
+  return {
+    days,
+    objetivo,
+    visitasTotales: 0,
+    nuevoPDV: 0,
+    pedidoRelevamiento: 0,
+    entrega: 0,
+    diferencia: -objetivo,
+    cumplimiento: objetivo > 0 ? 0 : null,
+    visitasConCompra: 0,
+    conversion: null,
+    cajasVendidas: 0,
+    ventaTotal: 0,
+    pedidosConCompra: 0,
+    ticketPromedio: 0,
+    clientesCompraron: [],
+  };
+}
+
+function calcRowsStats(rows, days, priceMap = PRODUCT_PRICES_BY_NAME, vendorCount = 1) {
+  const objetivo = 25 * days * vendorCount;
+  if (!rows || rows.length === 0) return emptyVendedoresStats(days, vendorCount);
+
+  const purchaseRows = rows.filter(isPurchaseVisit);
+  const visitasTotales = rows.length;
+  const visitasConCompra = purchaseRows.length;
+  const cajasVendidas = purchaseRows.reduce((sum, row) => sum + calcBoxes(row), 0);
+  const ventaTotal = purchaseRows.reduce((sum, row) => sum + calcSaleTotal(row, priceMap), 0);
+  const pedidosConCompra = purchaseRows.length;
+  const diferencia = visitasTotales - objetivo;
+  const clientesCompraron = purchaseRows.map((row) => ({
+    vendedor: row.vendedor || 'Sin vendedor',
+    cliente: row.nombrePDV || row.direccion || 'Sin nombre',
+    cajas: calcBoxes(row),
+    direccion: row.direccion || 'Sin direccion',
+  }));
+
+  return {
+    days,
+    objetivo,
+    visitasTotales,
+    nuevoPDV: rows.filter((row) => row.tipoVisita === VISIT_TYPES.nuevoPDV).length,
+    pedidoRelevamiento: rows.filter((row) => row.tipoVisita === VISIT_TYPES.pedido).length,
+    entrega: rows.filter((row) => row.tipoVisita === VISIT_TYPES.entrega).length,
+    diferencia,
+    cumplimiento: objetivo > 0 ? Math.round((visitasTotales / objetivo) * 1000) / 10 : null,
+    visitasConCompra,
+    conversion: safeRateDecimal(visitasConCompra, visitasTotales),
+    cajasVendidas,
+    ventaTotal,
+    pedidosConCompra,
+    ticketPromedio: pedidosConCompra > 0 ? Math.round(ventaTotal / pedidosConCompra) : 0,
+    clientesCompraron,
+  };
+}
+
+export function calcVendedoresPeriodStats(
+  data,
+  desde,
+  hasta,
+  vendedor = 'Todos',
+  priceMap = PRODUCT_PRICES_BY_NAME
+) {
+  const days = countInclusiveDays(desde, hasta);
+  const rows = getRowsInPeriod(data, desde, hasta, vendedor);
+  return calcRowsStats(rows, days, priceMap, 1);
+}
+
+export function calcVendedoresByVendor(
+  data,
+  desde,
+  hasta,
+  priceMap = PRODUCT_PRICES_BY_NAME
+) {
+  const days = countInclusiveDays(desde, hasta);
+  return VENDORS.map((vendedor) => {
+    const rows = getRowsInPeriod(data, desde, hasta, vendedor);
+    return {
+      vendedor,
+      ...calcRowsStats(rows, days, priceMap, 1),
+    };
+  });
+}
+
+export function calcVendedoresFixedComparison(
+  data,
+  periods,
+  priceMap = PRODUCT_PRICES_BY_NAME
+) {
+  return VENDORS.map((vendedor) => ({
+    vendedor,
+    periods: Object.fromEntries(
+      periods.map((period) => {
+        const rows = getRowsInPeriod(data, period.desde, period.hasta, vendedor);
+        return [period.key, calcRowsStats(rows, period.days, priceMap, 1)];
+      })
+    ),
+  }));
 }
 
 // Returns the Monday (00:00:00) of the week containing `date`

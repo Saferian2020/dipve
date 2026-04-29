@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import PeriodFilter from '../filters/PeriodFilter';
 
 const WINE = '#5C1A1A';
@@ -10,6 +11,11 @@ export default function Header({
   onSetWeek,
   onSetMonth,
   onCustomRange,
+  vendorMode,
+  vendorPeriodPreset,
+  onVendorPeriodChange,
+  vendorSelected,
+  onVendorSelectedChange,
 }) {
   return (
     <div>
@@ -45,6 +51,11 @@ export default function Header({
         onSetWeek={onSetWeek}
         onSetMonth={onSetMonth}
         onCustomRange={onCustomRange}
+        vendorMode={vendorMode}
+        vendorPeriodPreset={vendorPeriodPreset}
+        onVendorPeriodChange={onVendorPeriodChange}
+        vendorSelected={vendorSelected}
+        onVendorSelectedChange={onVendorSelectedChange}
       />
     </div>
   );

@@ -1,9 +1,11 @@
+/* eslint-disable react/prop-types */
 import './index.css';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSheetData } from './hooks/useSheetData';
 import { usePeriodFilter } from './hooks/usePeriodFilter';
 import Header from './components/layout/Header';
 import ExecutiveSummary from './components/layout/ExecutiveSummary';
+import VendedoresPanel from './components/panels/VendedoresPanel';
 import PreciosPanel from './components/panels/PreciosPanel';
 import EquipoPanel from './components/panels/EquipoPanel';
 import VentasPanel from './components/panels/VentasPanel';
@@ -11,11 +13,66 @@ import VentasPanel from './components/panels/VentasPanel';
 const WINE = '#5C1A1A';
 
 const TABS = [
+  { id: 'vendedores', label: 'Vendedores' },
   { id: 'equipo', label: 'Equipo' },
   { id: 'ventas', label: 'Ventas' },
   { id: 'precios', label: 'Precios' },
   { id: 'pedidos', label: 'Pedidos / Entregas' },
 ];
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date) {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function toDateInputValue(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function fromDateInputValue(value, end = false) {
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return end ? endOfDay(date) : startOfDay(date);
+}
+
+function buildVendorPeriods() {
+  const yesterday = addDays(new Date(), -1);
+  const hasta = endOfDay(yesterday);
+
+  return [
+    { key: 'day', label: 'Día anterior', desde: startOfDay(yesterday), hasta, days: 1 },
+    {
+      key: 'last5',
+      label: 'Últimos 5 días',
+      desde: startOfDay(addDays(yesterday, -4)),
+      hasta,
+      days: 5,
+    },
+    {
+      key: 'month',
+      label: 'Último mes',
+      desde: startOfDay(addDays(yesterday, -29)),
+      hasta,
+      days: 30,
+    },
+  ];
+}
 
 function LoadingSpinner() {
   return (
@@ -58,7 +115,16 @@ function PlaceholderPanel({ sesion }) {
 
 export default function App() {
   const { data, loading, error, lastUpdated } = useSheetData();
-  const [activeTab, setActiveTab] = useState('precios');
+  const [activeTab, setActiveTab] = useState('vendedores');
+  const vendorFixedPeriods = useMemo(() => buildVendorPeriods(), []);
+  const [vendorPeriodPreset, setVendorPeriodPreset] = useState('last5');
+  const [vendorSelected, setVendorSelected] = useState('Todos');
+  const [vendorCustomDesde, setVendorCustomDesde] = useState(
+    () => toDateInputValue(vendorFixedPeriods[1].desde)
+  );
+  const [vendorCustomHasta, setVendorCustomHasta] = useState(
+    () => toDateInputValue(vendorFixedPeriods[1].hasta)
+  );
   const {
     fechaDesde,
     fechaHasta,
@@ -70,6 +136,34 @@ export default function App() {
     setCustomRange,
   } = usePeriodFilter();
 
+  const selectedVendorPeriod = useMemo(() => {
+    if (vendorPeriodPreset === 'custom') {
+      const desde = fromDateInputValue(vendorCustomDesde);
+      const hasta = fromDateInputValue(vendorCustomHasta, true);
+      const days = Math.max(
+        1,
+        Math.round((startOfDay(hasta).getTime() - startOfDay(desde).getTime()) / 86400000) + 1
+      );
+      return { key: 'custom', label: 'Rango personalizado', desde, hasta, days };
+    }
+    return vendorFixedPeriods.find((period) => period.key === vendorPeriodPreset) || vendorFixedPeriods[1];
+  }, [vendorCustomDesde, vendorCustomHasta, vendorFixedPeriods, vendorPeriodPreset]);
+
+  function setVendorCustomRange(desdeStr, hastaStr) {
+    setVendorCustomDesde(desdeStr);
+    setVendorCustomHasta(hastaStr);
+    setVendorPeriodPreset('custom');
+  }
+
+  const headerDesdeInput =
+    activeTab === 'vendedores'
+      ? toDateInputValue(selectedVendorPeriod.desde)
+      : desdeInput;
+  const headerHastaInput =
+    activeTab === 'vendedores'
+      ? toDateInputValue(selectedVendorPeriod.hasta)
+      : hastaInput;
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message={error} />;
 
@@ -79,14 +173,21 @@ export default function App() {
       <div className="sticky top-0 z-30 shadow-md">
         <Header
           lastUpdated={lastUpdated}
-          desdeInput={desdeInput}
-          hastaInput={hastaInput}
+          desdeInput={headerDesdeInput}
+          hastaInput={headerHastaInput}
           activePreset={activePreset}
           onSetWeek={setWeek}
           onSetMonth={setMonth}
-          onCustomRange={setCustomRange}
+          onCustomRange={activeTab === 'vendedores' ? setVendorCustomRange : setCustomRange}
+          vendorMode={activeTab === 'vendedores'}
+          vendorPeriodPreset={vendorPeriodPreset}
+          onVendorPeriodChange={setVendorPeriodPreset}
+          vendorSelected={vendorSelected}
+          onVendorSelectedChange={setVendorSelected}
         />
-        <ExecutiveSummary data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
+        {activeTab !== 'vendedores' && (
+          <ExecutiveSummary data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
+        )}
       </div>
 
       {/* Tab navigation */}
@@ -111,7 +212,15 @@ export default function App() {
       </div>
 
       {/* Panel content */}
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        {activeTab === 'vendedores' && (
+          <VendedoresPanel
+            data={data}
+            selectedPeriod={selectedVendorPeriod}
+            selectedVendor={vendorSelected}
+            fixedPeriods={vendorFixedPeriods}
+          />
+        )}
         {activeTab === 'equipo' && (
           <EquipoPanel data={data} fechaDesde={fechaDesde} fechaHasta={fechaHasta} />
         )}

@@ -21,6 +21,18 @@ export const COLS = {
   zona: 31,          // Zona
   resultado: 32,     // Resultado
 
+  // Nombres y direcciones por ruta
+  nombreNuevoPDV: 18,     // Nombre PDV (Nuevo PDV)
+  direccionNuevoPDV: 6,   // Dirección PDV (Nuevo PDV)
+  nombrePedido: 60,       // Nombre PDV (Pedido/Relevamiento)
+  direccionPedido: 63,    // Dirección Pedido/Relevamiento
+  nombreEntrega: 64,      // Nombre PDV (Entrega)
+  direccionEntrega: 67,   // Dirección PDV para Entrega.
+
+  // Nuevo PDV: productos y cantidades vendidas (cols J, V, X, Z, CR / U, W, Y, AA, CS)
+  productoNuevoPDV: [9, 21, 23, 25, 95],
+  cantidadNuevoPDV: [20, 22, 24, 26, 96],
+
   // Pedidos: productos pedidos (cols AI, AK, AL, AM, CT)
   productoPedido: [34, 36, 37, 38, 97],
   // Pedidos: cantidades pedidas en cajas (cols AJ, AN, AO, AP, CU)
